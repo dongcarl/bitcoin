@@ -3298,12 +3298,6 @@ bool PeerLogicValidation::ProcessMessages(CNode* pfrom, std::atomic<bool>& inter
     CNetMessage& msg(msgs.front());
 
     msg.SetVersion(pfrom->GetRecvVersion());
-    // Check network magic
-    if (!msg.m_valid_netmagic) {
-        LogPrint(BCLog::NET, "PROCESSMESSAGE: INVALID MESSAGESTART %s peer=%d\n", SanitizeString(msg.m_command), pfrom->GetId());
-        pfrom->fDisconnect = true;
-        return false;
-    }
 
     const std::string& strCommand = msg.m_command;
 
