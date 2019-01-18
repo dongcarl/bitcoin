@@ -3305,12 +3305,6 @@ bool PeerLogicValidation::ProcessMessages(CNode* pfrom, std::atomic<bool>& inter
         return false;
     }
 
-    // Check header
-    if (!msg.m_valid_header)
-    {
-        LogPrint(BCLog::NET, "PROCESSMESSAGE: ERRORS IN HEADER %s peer=%d\n", SanitizeString(msg.m_command), pfrom->GetId());
-        return fMoreWork;
-    }
     const std::string& strCommand = msg.m_command;
 
     // Message size

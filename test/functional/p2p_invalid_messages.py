@@ -189,14 +189,14 @@ class InvalidMessagesTest(BitcoinTestFramework):
 
     def test_command(self):
         conn = self.nodes[0].add_p2p_connection(P2PDataStore())
-        with self.nodes[0].assert_debug_log(['PROCESSMESSAGE: ERRORS IN HEADER']):
+        with self.nodes[0].assert_debug_log(['INVALID HEADER DETECTED']):
             msg = msg_unrecognized(str_data="d")
             msg.command = b'\xff' * 12
             msg = conn.build_message(msg)
             # Modify command
             msg = msg[:7] + b'\x00' + msg[7 + 1:]
             self.nodes[0].p2p.send_raw_message(msg)
-            conn.sync_with_ping(timeout=1)
+            conn.wait_for_disconnect(timeout=1)
             self.nodes[0].disconnect_p2ps()
 
     def _tweak_msg_data_size(self, message, wrong_size):
