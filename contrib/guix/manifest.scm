@@ -1,42 +1,36 @@
-(use-package-modules
- perl
- gcc
- autotools
- shells
- python
- pkg-config
- linux
- certs
- curl)
-
-(use-modules
- (guix build-system gnu))
-
-(define unwrap-list-or-identity
-  ;; Takes a list x, and unwraps the first item if that's the only item, returns
-  ;; x unharmed otherwise
-  (lambda (x)
-    (if (= (length x) 1)
-        (car x)
-        x)))
-
-(define standard-packages->manifest
-  ;; Takes the list of standard packages for the GNU build system and transforms
-  ;; it into something understandable by packages->manifest
-  (lambda (standard-packages)
-    (map unwrap-list-or-identity (map cdr standard-packages))))
-
-(packages->manifest
- `(,perl
-   ,automake
-   ,autoconf
-   ,which
-   ,tcsh
-   ,libtool
-   ,python-2
-   ,python
-   ,pkg-config
-   ,util-linux
-   ,nss-certs
-   ,@(standard-packages->manifest (standard-packages))
-   ,curl))
+(specifications->manifest
+ '("bash" ;; useful for debugging, can do with -minimal
+   "perl"
+   "make"
+   "sed"
+   "grep"
+   "binutils@2.31.1"
+   "gcc@8.2.0"
+   "gcc@8.2.0:lib"
+   "glibc@2.28"
+   "glibc@2.28:static"
+   "glibc-utf8-locales"
+   "zlib"
+   "zlib:static"
+   "tar"
+   "file"
+   "gawk"
+   "sed"
+   "bzip2"
+   "bzip2:static"
+   "gzip"
+   "xz"
+   "findutils"
+   "diffutils"
+   "patch"
+   "automake"
+   "autoconf"
+   "coreutils"
+   "which"
+   "tcsh"
+   "libtool"
+   "python@3"
+   "pkg-config"
+   "util-linux"
+   "nss-certs"
+   "curl"))
