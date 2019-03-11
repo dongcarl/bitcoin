@@ -18,7 +18,7 @@ make -C depends --jobs="$(nproc)"
 CONFIGFLAGS="--enable-glibc-back-compat --enable-reduce-exports --disable-bench --disable-gui-tests"
 HOST_CFLAGS="-O2 -g"
 HOST_CXXFLAGS="-O2 -g"
-HOST_LDFLAGS=-static-libstdc++
+HOST_LDFLAGS="-Wl,--as-needed -static-libstdc++"
 
 env CONFIG_SITE="$(pwd)/depends/x86_64-pc-linux-gnu/share/config.site" \
     ./configure --prefix=/ \
@@ -31,9 +31,8 @@ env CONFIG_SITE="$(pwd)/depends/x86_64-pc-linux-gnu/share/config.site" \
                 LDFLAGS="${HOST_LDFLAGS}"
 
 # Perform the build
-make --jobs="$(nproc)"
+make --jobs="$(nproc)" V=1
 
 # Perform checks
-make -C src --jobs="$(nproc)" check-security
-make -C src --jobs="$(nproc)" check-symbols
-
+make -C src --jobs=1 check-security
+make -C src --jobs=1 check-symbols
