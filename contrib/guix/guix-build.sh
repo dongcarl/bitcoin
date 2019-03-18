@@ -1,4 +1,7 @@
-#!/bin/bash -ex
+#!/usr/bin/env bash
+export LC_ALL=C
+
+set -ex
 
 # Download the depends sources now as we won't have internet access in the build
 # container
