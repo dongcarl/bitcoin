@@ -332,7 +332,13 @@ bool OptionsModel::setData(const QModelIndex & index, const QVariant & value, in
             break;
         case MapPortUPnP: // core option - can be changed on-the-fly
             settings.setValue("fUseUPnP", value.toBool());
-            m_node.mapPort(value.toBool());
+            {
+                // TODO: pass this value in during qt's initialization instead of using a global value.
+                // The port parameter should already be sanity-checked by init.
+                int64_t listen_port = GetListenPort();
+                assert(CheckListenPort(listen_port));
+                m_node.mapPort(value.toBool(), listen_port);
+            }
             break;
         case MinimizeOnClose:
             fMinimizeOnClose = value.toBool();
