@@ -3,6 +3,8 @@ export LC_ALL=C
 
 set -ex
 
+HOST=x86_64-linux-gnu
+
 # Make /usr/bin if it doesn't exist
 [ -e /usr/bin ] || mkdir -p /usr/bin
 
@@ -10,8 +12,7 @@ set -ex
 [ -e /usr/bin/file ] || ln -s "$(command -v file)" /usr/bin/file
 
 # Build the depends tree
-make -C depends --jobs="$(nproc)"
-
+make -C depends --jobs="$(nproc)" HOST=$HOST
 
 # Setup a bitcoin with same parameters as gitian
 ./autogen.sh
@@ -21,7 +22,7 @@ HOST_CFLAGS="-O2 -g"
 HOST_CXXFLAGS="-O2 -g"
 HOST_LDFLAGS="-Wl,--as-needed -static-libstdc++"
 
-env CONFIG_SITE="$(pwd)/depends/x86_64-pc-linux-gnu/share/config.site" \
+env CONFIG_SITE="$(pwd)/depends/${HOST}/share/config.site" \
     ./configure --prefix=/ \
                 --disable-ccache \
                 --disable-maintainer-mode \
