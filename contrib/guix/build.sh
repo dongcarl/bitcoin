@@ -31,6 +31,8 @@ env CONFIG_SITE="$(pwd)/depends/x86_64-pc-linux-gnu/share/config.site" \
                 CXXFLAGS="${HOST_CXXFLAGS}" \
                 LDFLAGS="${HOST_LDFLAGS}"
 
+sed -i.old 's/-lstdc++ //g' config.status libtool src/univalue/config.status src/univalue/libtool
+
 # Perform the build
 make --jobs="$(nproc)" V=1
 

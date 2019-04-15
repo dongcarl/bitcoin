@@ -7,9 +7,6 @@ set -ex
 # container
 make -C depends -j48 download
 
-# Hack: Remove '.la' files to avoid unnecessary dynamic linking
-sudo rm -f "$(guix environment --manifest=contrib/guix/manifest.scm --container --pure --no-grafts -- printenv LIBRARY_PATH)"/*.la
-
 # Run the build script 'contrib/guix/build.sh' in the build container specified
 # by 'contrib/guix/manifest.scm'
 guix environment --manifest=contrib/guix/manifest.scm --container --pure --no-grafts -- sh contrib/guix/build.sh
