@@ -134,11 +134,11 @@ BOOST_AUTO_TEST_CASE(test_assumeutxo)
         BOOST_CHECK(!out.has_value());
     }
 
-    const auto out110 = ExpectedAssumeutxo(110, *params).value().get();
+    const AssumeutxoData& out110 = ExpectedAssumeutxo(110, *params).value();
     BOOST_CHECK_EQUAL(out110.hash_serialized, uint256S("76fd7334ac7c1baf57ddc0c626f073a655a35d98a4258cd1382c8cc2b8392e10"));
     BOOST_CHECK_EQUAL(out110.nChainTx, (unsigned int)110);
 
-    const auto out210 = ExpectedAssumeutxo(210, *params).value().get();
+    const AssumeutxoData& out210 = ExpectedAssumeutxo(210, *params).value();
     BOOST_CHECK_EQUAL(out210.hash_serialized, uint256S("9c5ed99ef98544b34f8920b6d1802f72ac28ae6e2bd2bd4c316ff10c230df3f2"));
     BOOST_CHECK_EQUAL(out210.nChainTx, (unsigned int)210);
 }
