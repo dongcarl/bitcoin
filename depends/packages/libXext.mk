@@ -6,7 +6,7 @@ $(package)_sha256_hash=b518d4d332231f313371fdefac59e3776f4f0823bcb23cf7c7305bfb5
 $(package)_dependencies=xproto xextproto libX11 libXau
 
 define $(package)_set_vars
-  $(package)_config_opts=--disable-static
+  $(package)_config_opts=--disable-static --enable-malloc0returnsnull
 endef
 
 define $(package)_preprocess_cmds
