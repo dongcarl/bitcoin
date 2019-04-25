@@ -52,6 +52,7 @@ struct ChainTxData;
 struct DisconnectedBlockTransactions;
 struct PrecomputedTransactionData;
 struct LockPoints;
+struct AssumeutxoData;
 
 /** Default for -minrelaytxfee, minimum relay fee for transactions */
 static const unsigned int DEFAULT_MIN_RELAY_TX_FEE = 1000;
@@ -961,5 +962,15 @@ inline bool IsBlockPruned(const CBlockIndex* pblockindex)
 {
     return (fHavePruned && !(pblockindex->nStatus & BLOCK_HAVE_DATA) && pblockindex->nTx > 0);
 }
+
+/**
+ * Return the expected assumeutxo value for a given height, if one exists.
+ *
+ * @param height[in] Get the assumeutxo value for this height.
+ *
+ * @returns empty if no assumeutxo configuration exists for the given height.
+ */
+std::optional<std::reference_wrapper<const AssumeutxoData>> ExpectedAssumeutxo(
+    const int height, const CChainParams& params);
 
 #endif // BITCOIN_VALIDATION_H
