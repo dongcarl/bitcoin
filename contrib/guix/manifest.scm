@@ -57,5 +57,4 @@
    "pkg-config"
    "util-linux"
    "nss-certs"
-   "curl"
-   "patchelf"))
+   "curl"))

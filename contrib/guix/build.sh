@@ -147,12 +147,32 @@ fi
 BASESOURCEDIST="$(basename "${SOURCEDIST}")"
 DISTNAME="${BASESOURCEDIST%.tar.gz}"
 
+glibc-dynamic-linker() {
+    case "$1" in
+        i686-linux-gnu)
+            echo /lib/ld-linux.so.2
+            ;;
+        x86_64-linux-gnu)
+            echo /lib64/ld-linux-x86-64.so.2
+            ;;
+        arm-linux-gnueabihf)
+            echo /lib/ld-linux-armhf.so.3
+            ;;
+        aarch64-linux-gnu)
+            echo /lib/ld-linux-aarch64.so.1
+            ;;
+        *)
+            echo no-ld.so
+            ;;
+    esac
+}
+
 # Setup a bitcoin with same parameters as gitian
 SPECS="-specs=${PWD}/contrib/guix/fix-ssp.spec"
 CONFIGFLAGS="--enable-glibc-back-compat --enable-reduce-exports --disable-bench --disable-gui-tests"
 HOST_CFLAGS="-O2 -g ${SPECS}"
 HOST_CXXFLAGS="-O2 -g ${SPECS}"
-HOST_LDFLAGS="-Wl,--as-needed -static-libstdc++"
+HOST_LDFLAGS="-Wl,--as-needed -Wl,--dynamic-linker=$(glibc-dynamic-linker "$HOST") -static-libstdc++"
 
 export PATH="${BASEPREFIX}/${HOST}/native/bin:${PATH}"
 mkdir -p "distsrc-${HOST}"
@@ -190,14 +210,10 @@ mkdir -p "distsrc-${HOST}"
 
         rm -rf "${DISTNAME}/lib/pkgconfig"
 
-        for bin in "${DISTNAME}/bin/"*
-        do
-            ../contrib/devtools/split-debug.sh "$bin"{,,.dbg}
-            # HACK: Patch interpreter path
-            interp_path="$(patchelf --print-interpreter "$bin")"
-            patchelf --set-interpreter "/${interp_path#/*/*/*/}" "$bin"
-        done
-        find "${DISTNAME}/lib" -type f -print0 | xargs -0 -n1 -I{} ../contrib/devtools/split-debug.sh {} {} {}.dbg
+        find "${DISTNAME}/bin" -type f -executable -print0 \
+            | xargs -0 -n1 -I{} ../contrib/devtools/split-debug.sh {} {} {}.dbg
+        find "${DISTNAME}/lib" -type f -print0 \
+            | xargs -0 -n1 -I{} ../contrib/devtools/split-debug.sh {} {} {}.dbg
 
         cp ../doc/README.md "${DISTNAME}/"
 
