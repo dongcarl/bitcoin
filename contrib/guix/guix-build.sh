@@ -5,16 +5,21 @@ set -ex
 
 # Download the depends sources now as we won't have internet access in the build
 # container
-make -C depends -j48 download
+make -C depends -j"$(nproc)" download ${SOURCES_PATH+SOURCES_PATH="$SOURCES_PATH"}
 
-# Run the build script 'contrib/guix/build.sh' in the build container specified
-# by 'contrib/guix/manifest.scm'
-guix environment --manifest=contrib/guix/manifest.scm --container --pure --no-grafts -- sh contrib/guix/build.sh
 
-# Hack: Remove rpaths from all binaries, and patch their interpreter
-for i in src/bitcoind src/bitcoin-cli src/bitcoin-tx src/qt/bitcoin-qt src/test/test_bitcoin
+for host in ${HOSTS=i686-linux-gnu x86_64-linux-gnu arm-linux-gnueabihf aarch64-linux-gnu}
 do
-        patchelf --remove-rpath "$i"
-        interp_path="$(patchelf --print-interpreter "$i")"
-        patchelf --set-interpreter "/${interp_path#/*/*/*/}" "$i"
+    # Run the build script 'contrib/guix/build.sh' in the build container
+    # specified by 'contrib/guix/manifest.scm'
+    guix environment --manifest=contrib/guix/manifest.scm \
+                     --load-path=contrib/guix/packages \
+                     --container \
+                     --pure \
+                     --no-grafts \
+                     ${SOURCES_PATH+--share="$SOURCES_PATH"} \
+                     -- env HOST="$host" \
+                     ${SOURCES_PATH+SOURCES_PATH="$SOURCES_PATH"} \
+                     REFERENCE_UNIX_TIMESTAMP="$(git log --format=%at -1)" \
+                     bash contrib/guix/build.sh
 done
