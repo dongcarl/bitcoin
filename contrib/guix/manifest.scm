@@ -55,6 +55,4 @@
    "libtool"
    "python@3"
    "pkg-config"
-   "util-linux"
-   "nss-certs"
-   "curl"))
+   "util-linux"))
