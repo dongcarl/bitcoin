@@ -5,6 +5,7 @@
   #:use-module (guix gexp)
   #:use-module (gnu packages bootstrap)
   #:use-module (gnu packages compression)
+  #:use-module (gnu packages commencement)
   #:use-module (gnu packages multiprecision)
   #:use-module (gnu packages texinfo)
   #:use-module (gnu packages dejagnu)
@@ -31,8 +32,8 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 regex))
 
-(define-public gcc-glibc-2.27
-  (make-gcc-libc gcc-9 glibc-2.27))
+(define-public gcc-toolchain-9-glibc-2.27
+  (make-gcc-toolchain gcc-9 glibc-2.27))
 
 (define (make-ssp-fixed-gcc xgcc)
   (package (inherit xgcc)
@@ -60,62 +61,88 @@
                 (("-rpath=") "-rpath-link="))
               #t))))))))
 
-;; x86_64
-(define-public xlibc-x86_64
-  (cross-libc "x86_64-linux-gnu"
-              glibc-2.27))
+(define bitcoin-gcc-9
+  (make-gcc-rpath-link (make-ssp-fixed-gcc gcc-9)))
 
-(define-public xbinutils-x86_64
-  (cross-binutils "x86_64-linux-gnu"))
+(define (cross-toolchain target
+                         base-libc
+                         base-kernel-headers
+                         base-gcc-for-libc
+                         base-gcc)
+  "Create a cross-compilation toolchain package for TARGET"
+  (let* ((xbinutils (cross-binutils target))
+         ;; 1. Build a cross-compiling gcc without libc, derived from
+         ;; BASE-GCC-FOR-LIBC
+         (xgcc-sans-libc (cross-gcc target
+                                    #:xgcc base-gcc-for-libc
+                                    #:xbinutils xbinutils))
+         ;; 2. Build cross-compiled kernel headers with XGCC-SANS-LIBC, derived
+         ;; from BASE-KERNEL-HEADERS
+         (xkernel (cross-kernel-headers target
+                                        base-kernel-headers
+                                        xgcc-sans-libc
+                                        xbinutils))
+         ;; 3. Build cross-compiled libc with XGCC-SANS-LIBC and XKERNEL,
+         ;; derived from BASE-LIBC
+         (xlibc (cross-libc target
+                            base-libc
+                            xgcc-sans-libc
+                            xbinutils
+                            xkernel))
+         ;; 4. Build cross-compiling gcc with XLIBC, derived from BASE-GCC
+         (xgcc (cross-gcc target
+                          #:xgcc base-gcc
+                          #:xbinutils xbinutils
+                          #:libc xlibc)))
+    ;; Define a meta-package that propagates the resulting XBINUTILS, XLIBC, and
+    ;; XGCC
+    (package
+      (name (string-append target "-toolchain"))
+      (version (package-version xgcc))
+      (source #f)
+      (build-system trivial-build-system)
+      (arguments '(#:builder (begin (mkdir %output) #t)))
+      (propagated-inputs
+       `(("binutils" ,xbinutils)
+         ("libc" ,xlibc)
+         ("gcc" ,xgcc)))
+      (synopsis (string-append "Complete GCC tool chain for " target))
+      (description (string-append "This package provides a complete GCC tool
+chain for " target " development."))
+      (home-page (package-home-page xgcc))
+      (license (package-license xgcc)))))
 
-(define-public xgcc-x86_64
-  (let ((triplet "x86_64-linux-gnu"))
-    (cross-gcc triplet
-               #:xgcc (make-ssp-fixed-gcc (make-gcc-rpath-link gcc-9))
-               #:xbinutils xbinutils-x86_64
-               #:libc xlibc-x86_64)))
+(define-public xtoolchain-riscv64
+  (cross-toolchain "riscv64-linux-gnu"
+                   glibc-2.27
+                   linux-libre-headers-4.15
+                   gcc-8
+                   bitcoin-gcc-9))
 
-;; aarch64
-(define-public xlibc-aarch64
-  (cross-libc "aarch64-linux-gnu"
-              glibc-2.27))
+(define-public xtoolchain-x86_64
+  (cross-toolchain "x86_64-linux-gnu"
+                   glibc-2.27
+                   linux-libre-headers-4.15
+                   gcc
+                   bitcoin-gcc-9))
 
-(define-public xbinutils-aarch64
-  (cross-binutils "aarch64-linux-gnu"))
+(define-public xtoolchain-i686
+  (cross-toolchain "i686-linux-gnu"
+                   glibc-2.27
+                   linux-libre-headers-4.15
+                   gcc
+                   bitcoin-gcc-9))
 
-(define-public xgcc-aarch64
-  (let ((triplet "aarch64-linux-gnu"))
-    (cross-gcc triplet
-               #:xgcc (make-ssp-fixed-gcc (make-gcc-rpath-link gcc-9))
-               #:xbinutils xbinutils-aarch64
-               #:libc xlibc-aarch64)))
+(define-public xtoolchain-aarch64
+  (cross-toolchain "aarch64-linux-gnu"
+                   glibc-2.27
+                   linux-libre-headers-4.15
+                   gcc
+                   bitcoin-gcc-9))
 
-;; armhf
-(define-public xlibc-armhf
-  (cross-libc "arm-linux-gnueabihf"
-              glibc-2.27))
-
-(define-public xbinutils-armhf
-  (cross-binutils "arm-linux-gnueabihf"))
-
-(define-public xgcc-armhf
-  (let ((triplet "arm-linux-gnueabihf"))
-    (cross-gcc triplet
-               #:xgcc (make-ssp-fixed-gcc (make-gcc-rpath-link gcc-9))
-               #:xbinutils xbinutils-armhf
-               #:libc xlibc-armhf)))
-
-;; i686
-(define-public xlibc-i686
-  (cross-libc "i686-linux-gnu"
-              glibc-2.27))
-
-(define-public xbinutils-i686
-  (cross-binutils "i686-linux-gnu"))
-
-(define-public xgcc-i686
-  (let ((triplet "i686-linux-gnu"))
-    (cross-gcc triplet
-               #:xgcc (make-ssp-fixed-gcc (make-gcc-rpath-link gcc-9))
-               #:xbinutils xbinutils-i686
-               #:libc xlibc-i686)))
+(define-public xtoolchain-armhf
+  (cross-toolchain "arm-linux-gnueabihf"
+                   glibc-2.27
+                   linux-libre-headers-4.15
+                   gcc-6
+                   bitcoin-gcc-9))

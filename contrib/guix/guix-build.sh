@@ -8,7 +8,7 @@ set -ex
 make -C depends -j"$(nproc)" download ${SOURCES_PATH+SOURCES_PATH="$SOURCES_PATH"}
 
 
-for host in ${HOSTS=i686-linux-gnu x86_64-linux-gnu arm-linux-gnueabihf aarch64-linux-gnu}
+for host in ${HOSTS=i686-linux-gnu x86_64-linux-gnu arm-linux-gnueabihf aarch64-linux-gnu riscv64-linux-gnu}
 do
     # Run the build script 'contrib/guix/build.sh' in the build container
     # specified by 'contrib/guix/manifest.scm'
