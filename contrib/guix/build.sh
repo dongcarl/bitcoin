@@ -161,6 +161,9 @@ glibc-dynamic-linker() {
         aarch64-linux-gnu)
             echo /lib/ld-linux-aarch64.so.1
             ;;
+        riscv64-linux-gnu)
+            echo /lib/ld-linux-riscv64-lp64d.so.1
+            ;;
         *)
             echo no-ld.so
             ;;
