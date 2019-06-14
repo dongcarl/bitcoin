@@ -47,7 +47,7 @@ mkdir -p "${OUTDIR}"
 # Environment variables for determism
 export QT_RCC_TEST=1
 export QT_RCC_SOURCE_DATE_OVERRIDE=1
-export TAR_OPTIONS="--owner=0 --group=0 --numeric-owner --mtime='@${REFERENCE_UNIX_TIMESTAMP}' --sort=name"
+export TAR_OPTIONS="--owner=0 --group=0 --numeric-owner --mtime='@${REFERENCE_UNIX_TIMESTAMP}'"
 export TZ="UTC"
 
 # Let's ground ourselves
@@ -221,11 +221,13 @@ mkdir -p "distsrc-${HOST}"
         cp ../doc/README.md "${DISTNAME}/"
 
         find "${DISTNAME}" -not -name "*.dbg" -print0 \
-            | tar --no-recursion --mode='u+rw,go+r-w,a+X' --owner=0 --group=0 -c --null -T - \
+            | sort \
+            | tar --create --no-recursion --mode='u+rw,go+r-w,a+X' --null --files-from=- \
             | gzip > "${OUTDIR}/${DISTNAME}-${HOST}.tar.gz"
 
         find "${DISTNAME}" -name "*.dbg" -print0 \
-            | tar --no-recursion --mode='u+rw,go+r-w,a+X' --owner=0 --group=0 -c --null -T - \
+            | sort \
+            | tar --create --no-recursion --mode='u+rw,go+r-w,a+X' --null --files-from=- \
             | gzip > "${OUTDIR}/${DISTNAME}-${HOST}-debug.tar.gz"
     )
 )
