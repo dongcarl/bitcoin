@@ -173,8 +173,8 @@ glibc-dynamic-linker() {
 # Setup a bitcoin with same parameters as gitian
 SPECS="-specs=${PWD}/contrib/guix/fix-ssp.spec"
 CONFIGFLAGS="--enable-glibc-back-compat --enable-reduce-exports --disable-bench --disable-gui-tests"
-HOST_CFLAGS="-O2 -g ${SPECS}"
-HOST_CXXFLAGS="-O2 -g ${SPECS}"
+HOST_CFLAGS="-O2 -g ${SPECS} -ffile-prefix-map=${PWD}=."
+HOST_CXXFLAGS="-O2 -g ${SPECS} -ffile-prefix-map=${PWD}=."
 HOST_LDFLAGS="-Wl,--as-needed -Wl,--dynamic-linker=$(glibc-dynamic-linker "$HOST") -static-libstdc++"
 
 export PATH="${BASEPREFIX}/${HOST}/native/bin:${PATH}"
