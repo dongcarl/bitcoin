@@ -47,7 +47,7 @@ mkdir -p "${OUTDIR}"
 # Environment variables for determism
 export QT_RCC_TEST=1
 export QT_RCC_SOURCE_DATE_OVERRIDE=1
-export TAR_OPTIONS="--owner=0 --group=0 --numeric-owner --mtime='@${REFERENCE_UNIX_TIMESTAMP}'"
+export TAR_OPTIONS="--owner=0 --group=0 --numeric-owner --mtime='@${REFERENCE_UNIX_TIMESTAMP}' --sort=name"
 export TZ="UTC"
 
 # Let's ground ourselves
