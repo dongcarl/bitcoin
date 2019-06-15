@@ -13,7 +13,7 @@ fi
 export GUIX_LD_WRAPPER_DISABLE_RPATH=yes
 
 CROSS_GLIBC="$(grep -E "/\S+glibc-cross-$HOST-[^-]+\\\"" "$GUIX_ENVIRONMENT/manifest" | sed -E -e 's|^\s+"||g' -e 's|"\s*$||g')"
-CROSS_GLIBC_STATIC="$(grep -E "/\S+glibc-cross-$HOST-[^-]+-static" "$GUIX_ENVIRONMENT/manifest" | sed -E -e 's|^\s+"||g' -e 's|"\s*$||g')"
+# CROSS_GLIBC_STATIC="$(grep -E "/\S+glibc-cross-$HOST-[^-]+-static" "$GUIX_ENVIRONMENT/manifest" | sed -E -e 's|^\s+"||g' -e 's|"\s*$||g')"
 CROSS_KERNEL="$(grep -E "/\S+linux-libre-headers-cross-$HOST" "$GUIX_ENVIRONMENT/manifest" | head -n1 | sed -E -e 's|^\s+"||g' -e 's|"\s*$||g')"
 CROSS_GCC="$(grep -E "/\S+gcc-cross-$HOST" "$GUIX_ENVIRONMENT/manifest" | sed -E -e 's|^\s+"||g' -e 's|"\s*$||g')"
 
