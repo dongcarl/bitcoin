@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 export LC_ALL=C
 
-set -ex
+set -e -x -o pipefail
 
 if [ -z "$HOST" ]
 then
