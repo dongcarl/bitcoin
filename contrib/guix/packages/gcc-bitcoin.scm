@@ -116,34 +116,34 @@ chain for " target " development."))
 (define-public xtoolchain-riscv64
   (cross-toolchain "riscv64-linux-gnu"
                    glibc-2.27
-                   linux-libre-headers-4.15
+                   linux-libre-headers-4.19
                    gcc-8
                    bitcoin-gcc-9))
 
 (define-public xtoolchain-x86_64
   (cross-toolchain "x86_64-linux-gnu"
                    glibc-2.27
-                   linux-libre-headers-4.15
+                   linux-libre-headers-4.19
                    gcc
                    bitcoin-gcc-9))
 
 (define-public xtoolchain-i686
   (cross-toolchain "i686-linux-gnu"
                    glibc-2.27
-                   linux-libre-headers-4.15
+                   linux-libre-headers-4.19
                    gcc
                    bitcoin-gcc-9))
 
 (define-public xtoolchain-aarch64
   (cross-toolchain "aarch64-linux-gnu"
                    glibc-2.27
-                   linux-libre-headers-4.15
+                   linux-libre-headers-4.19
                    gcc
                    bitcoin-gcc-9))
 
 (define-public xtoolchain-armhf
   (cross-toolchain "arm-linux-gnueabihf"
                    glibc-2.27
-                   linux-libre-headers-4.15
+                   linux-libre-headers-4.19
                    gcc-6
                    bitcoin-gcc-9))
