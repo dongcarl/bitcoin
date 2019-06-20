@@ -16,10 +16,10 @@ do
                      --load-path=contrib/guix/packages \
                      --container \
                      --pure \
-                     --no-grafts \
+                     --share=.=/bitcoin \
                      ${SOURCES_PATH+--share="$SOURCES_PATH"} \
                      -- env HOST="$host" \
                      ${SOURCES_PATH+SOURCES_PATH="$SOURCES_PATH"} \
                      REFERENCE_UNIX_TIMESTAMP="$(git log --format=%at -1)" \
-                     bash contrib/guix/build.sh
+                     bash -c "cd /bitcoin && bash contrib/guix/build.sh"
 done
