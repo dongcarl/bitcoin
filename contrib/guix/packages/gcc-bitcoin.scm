@@ -105,6 +105,7 @@
       (propagated-inputs
        `(("binutils" ,xbinutils)
          ("libc" ,xlibc)
+         ("libc:static" ,xlibc "static")
          ("gcc" ,xgcc)))
       (synopsis (string-append "Complete GCC tool chain for " target))
       (description (string-append "This package provides a complete GCC tool
