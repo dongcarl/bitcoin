@@ -221,11 +221,13 @@ mkdir -p "distsrc-${HOST}"
         cp ../doc/README.md "${DISTNAME}/"
 
         find "${DISTNAME}" -not -name "*.dbg" -print0 \
-            | tar --no-recursion --mode='u+rw,go+r-w,a+X' --owner=0 --group=0 -c --null -T - \
+            | sort --zero-terminated \
+            | tar --create --no-recursion --mode='u+rw,go+r-w,a+X' --null --files-from=- \
             | gzip > "${OUTDIR}/${DISTNAME}-${HOST}.tar.gz"
 
         find "${DISTNAME}" -name "*.dbg" -print0 \
-            | tar --no-recursion --mode='u+rw,go+r-w,a+X' --owner=0 --group=0 -c --null -T - \
+            | sort --zero-terminated \
+            | tar --create --no-recursion --mode='u+rw,go+r-w,a+X' --null --files-from=- \
             | gzip > "${OUTDIR}/${DISTNAME}-${HOST}-debug.tar.gz"
     )
 )
