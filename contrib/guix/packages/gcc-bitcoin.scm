@@ -1,39 +1,13 @@
 (define-module (gcc-bitcoin)
-  #:use-module ((guix licenses)
-                #:select (gpl3+ gpl2+ lgpl2.1+ lgpl2.0+ fdl1.3+))
-  #:use-module (gnu packages)
-  #:use-module (guix gexp)
-  #:use-module (gnu packages bootstrap)
-  #:use-module (gnu packages compression)
-  #:use-module (gnu packages commencement)
-  #:use-module (gnu packages multiprecision)
-  #:use-module (gnu packages texinfo)
-  #:use-module (gnu packages dejagnu)
-  #:use-module (gnu packages pkg-config)
-  #:use-module (gnu packages documentation)
-  #:use-module (gnu packages xml)
   #:use-module (gnu packages base)
+  #:use-module (gnu packages commencement)
   #:use-module (gnu packages cross-base)
   #:use-module (gnu packages gcc)
   #:use-module (gnu packages linux)
-  #:use-module (gnu packages hurd)
-  #:use-module (gnu packages mingw)
-  #:use-module (gnu packages docbook)
-  #:use-module (gnu packages graphviz)
-  #:use-module (gnu packages elf)
-  #:use-module (gnu packages perl)
-  #:use-module (guix packages)
-  #:use-module (guix download)
-  #:use-module (guix build-system gnu)
   #:use-module (guix build-system trivial)
-  #:use-module (guix utils)
-  #:use-module (srfi srfi-1)
-  #:use-module (srfi srfi-26)
-  #:use-module (ice-9 match)
-  #:use-module (ice-9 regex))
-
-(define-public gcc-toolchain-9-glibc-2.27
-  (make-gcc-toolchain gcc-9 glibc-2.27))
+  #:use-module (guix gexp)
+  #:use-module (guix packages)
+  #:use-module (guix utils))
 
 (define (make-ssp-fixed-gcc xgcc)
   (package (inherit xgcc)
@@ -71,8 +45,8 @@
                          base-gcc)
   "Create a cross-compilation toolchain package for TARGET"
   (let* ((xbinutils (cross-binutils target))
-         ;; 1. Build a cross-compiling gcc without libc, derived from
-         ;; BASE-GCC-FOR-LIBC
+         ;; 1. Build a cross-compiling gcc without targeting any libc, derived
+         ;; from BASE-GCC-FOR-LIBC
          (xgcc-sans-libc (cross-gcc target
                                     #:xgcc base-gcc-for-libc
                                     #:xbinutils xbinutils))
@@ -89,7 +63,8 @@
                             xgcc-sans-libc
                             xbinutils
                             xkernel))
-         ;; 4. Build cross-compiling gcc with XLIBC, derived from BASE-GCC
+         ;; 4. Build a cross-compiling gcc targeting XLIBC, derived from
+         ;; BASE-GCC
          (xgcc (cross-gcc target
                           #:xgcc base-gcc
                           #:xbinutils xbinutils
@@ -112,6 +87,9 @@
 chain for " target " development."))
       (home-page (package-home-page xgcc))
       (license (package-license xgcc)))))
+
+(define-public guix-native-toolchain
+  (make-gcc-toolchain gcc-9 glibc-2.27))
 
 (define-public xtoolchain-riscv64
   (cross-toolchain "riscv64-linux-gnu"
