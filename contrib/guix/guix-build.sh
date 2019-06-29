@@ -16,6 +16,7 @@ do
                      --load-path=contrib/guix/packages \
                      --container \
                      --pure \
+                     --no-cwd \
                      --share=.=/bitcoin \
                      ${SOURCES_PATH+--share="$SOURCES_PATH"} \
                      -- env HOST="$host" \
