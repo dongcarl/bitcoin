@@ -5,7 +5,7 @@
    "sed"
    "grep"
    ;; toolchains
-   "gcc-toolchain-glibc-2.27"
+   "gcc-glibc-2.27-toolchain"
    "x86_64-linux-gnu-toolchain"
    "i686-linux-gnu-toolchain"
    "aarch64-linux-gnu-toolchain"
