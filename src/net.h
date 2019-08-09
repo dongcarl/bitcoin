@@ -642,7 +642,9 @@ public:
     // set the serialization context version
     virtual void SetVersion(int version) = 0;
     // read and deserialize data
-    virtual int Read(const char *data, unsigned int bytes) = 0;
+    virtual int Read(const char *data, unsigned int bytes, bool first_message) = 0;
+    // check if it is a transport protocol upgrade handshake
+    virtual bool ProtocolUpgradeDetected(std::vector<unsigned char>& data) = 0;
     // decomposes a message from the context
     virtual CNetMessage GetMessage(const CMessageHeader::MessageStartChars& message_start, int64_t time) = 0;
     virtual ~TransportDeserializer() {}
@@ -660,8 +662,9 @@ private:
     unsigned int nHdrPos;
     unsigned int nDataPos;
 
+    bool m_v2_handshake;
     const uint256& GetMessageHash() const;
-    int readHeader(const char *pch, unsigned int nBytes);
+    int readHeader(const char *pch, unsigned int nBytes, bool first_message);
     int readData(const char *pch, unsigned int nBytes);
 
     void Reset() {
@@ -673,6 +676,7 @@ private:
         nDataPos = 0;
         data_hash.SetNull();
         hasher.Reset();
+        m_v2_handshake = false;
     }
 
 public:
@@ -685,6 +689,9 @@ public:
     {
         if (!in_data)
             return false;
+        if (m_v2_handshake) {
+            return (32 == nDataPos);
+        }
         return (hdr.nMessageSize == nDataPos);
     }
     void SetVersion(int nVersionIn) override
@@ -692,11 +699,12 @@ public:
         hdrbuf.SetVersion(nVersionIn);
         vRecv.SetVersion(nVersionIn);
     }
-    int Read(const char *pch, unsigned int nBytes) override {
-        int ret = in_data ? readData(pch, nBytes) : readHeader(pch, nBytes);
+    int Read(const char *pch, unsigned int nBytes, bool first_message) override {
+        int ret = in_data ? readData(pch, nBytes) : readHeader(pch, nBytes, first_message);
         if (ret < 0) Reset();
         return ret;
     }
+    bool ProtocolUpgradeDetected(std::vector<unsigned char>& data) override;
     CNetMessage GetMessage(const CMessageHeader::MessageStartChars& message_start, int64_t time) override;
 };
 
@@ -760,7 +768,8 @@ public:
     {
         return (m_in_data && m_message_size > MAX_PROTOCOL_MESSAGE_LENGTH);
     }
-    int Read(const char* pch, unsigned int nBytes);
+    int Read(const char* pch, unsigned int nBytes, bool first_message);
+    bool ProtocolUpgradeDetected(std::vector<unsigned char>& data) override { return false; }
     CNetMessage GetMessage(const CMessageHeader::MessageStartChars& message_start, int64_t time);
 };
 
@@ -797,6 +806,8 @@ public:
     }
     // prepare for next message
     void prepareForTransport(CSerializedNetMsg& msg, std::vector<unsigned char>& header);
+
+    static void generateEmphemeralKey(CKey& key);
 };
 
 /** Information about a peer */
@@ -808,6 +819,8 @@ class CNode
 public:
     std::unique_ptr<TransportDeserializer> m_deserializer;
     std::unique_ptr<TransportSerializer> m_serializer;
+
+    CKey m_ecdh_key;
 
     // socket
     std::atomic<ServiceFlags> nServices{NODE_NONE};
@@ -1091,6 +1104,8 @@ public:
     std::string GetAddrName() const;
     //! Sets the addrName only if it was not previously set
     void MaybeSetAddrName(const std::string& addrNameIn);
+
+    friend struct CNodeTest;
 };
 
 /** Return a timestamp in the future (in microseconds) for exponentially distributed events. */
