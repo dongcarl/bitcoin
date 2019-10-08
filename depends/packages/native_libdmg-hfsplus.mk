@@ -12,7 +12,7 @@ define $(package)_preprocess_cmds
 endef
 
 define $(package)_config_cmds
-  cmake -DCMAKE_INSTALL_PREFIX:PATH=$(build_prefix)/bin ..
+  cmake -DCMAKE_INSTALL_PREFIX:PATH=$(build_prefix) ..
 endef
 
 define $(package)_build_cmds
