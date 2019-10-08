@@ -36,6 +36,7 @@ define $(package)_extract_cmds
   tar --no-same-owner --strip-components=1 -C libtapi -xf $($(package)_source_dir)/$($(package)_libtapi_file_name) && \
   mkdir -p toolchain/bin toolchain/lib/clang/6.0.1/include && \
   tar --no-same-owner --strip-components=1 -C toolchain -xf $($(package)_source_dir)/$($(package)_clang_file_name) && \
+  rm -f toolchain/lib/libc++abi.so* && \
   tar --no-same-owner --strip-components=1 -xf $($(package)_source)
 endef
 
