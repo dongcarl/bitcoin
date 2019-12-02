@@ -1598,17 +1598,20 @@ void CConnman::ThreadDNSAddressSeed()
             if (!resolveSource.SetInternal(host)) {
                 continue;
             }
-            unsigned int nMaxIPs = 256; // Limits number of IPs learned from a DNS seed
-            if (LookupHost(host.c_str(), vIPs, nMaxIPs, true)) {
-                for (const CNetAddr& ip : vIPs) {
-                    int nOneDay = 24*3600;
-                    CAddress addr = CAddress(CService(ip, Params().GetDefaultPort()), requiredServiceBits);
-                    addr.nTime = GetTime() - 3*nOneDay - rng.randrange(4*nOneDay); // use a random age between 3 and 7 days old
-                    vAdd.push_back(addr);
-                    found++;
+            unsigned int nMaxIPsPerFamily = 16; // Limits number of IPs learned per family from a DNS seed
+            for (int family : {AF_INET, AF_INET6}) {
+                if (LookupHost(host.c_str(), vIPs, nMaxIPsPerFamily, true, family)) {
+                    for (const CNetAddr& ip : vIPs) {
+                        int nOneDay = 24*3600;
+                        CAddress addr = CAddress(CService(ip, Params().GetDefaultPort()), requiredServiceBits);
+                        addr.nTime = GetTime() - 3*nOneDay - rng.randrange(4*nOneDay); // use a random age between 3 and 7 days old
+                        vAdd.push_back(addr);
+                        found++;
+                    }
+                    addrman.Add(vAdd, resolveSource);
                 }
-                addrman.Add(vAdd, resolveSource);
-            } else {
+            }
+            if (vAdd.empty()) {
                 // We now avoid directly using results from DNS Seeds which do not support service bit filtering,
                 // instead using them as a oneshot to get nodes with our desired service bits.
                 AddOneShot(seed);
