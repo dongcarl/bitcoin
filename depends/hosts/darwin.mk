@@ -13,5 +13,10 @@ darwin_release_CXXFLAGS=$(darwin_release_CFLAGS)
 darwin_debug_CFLAGS=-O1
 darwin_debug_CXXFLAGS=$(darwin_debug_CFLAGS)
 
+ifeq ($(strip $(FORCE_USE_SYSTEM_CLANG)),)
 darwin_native_binutils=native_cctools
 darwin_native_toolchain=native_cctools
+else
+darwin_native_binutils=native_cctools-system-clang
+darwin_native_toolchain=
+endif

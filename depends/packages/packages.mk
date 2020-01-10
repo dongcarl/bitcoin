@@ -21,5 +21,10 @@ upnp_packages=miniupnpc
 darwin_native_packages = native_biplist native_ds_store native_mac_alias
 
 ifneq ($(build_os),darwin)
-darwin_native_packages += native_cctools native_cdrkit native_libdmg-hfsplus
+ifeq ($(strip $(FORCE_USE_SYSTEM_CLANG)),)
+darwin_native_packages += native_cctools
+else
+darwin_native_packages += native_cctools-system-clang
+endif
+darwin_native_packages += native_cdrkit native_libdmg-hfsplus
 endif
