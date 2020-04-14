@@ -591,95 +591,115 @@ void CNode::copyStats(CNodeStats &stats, const std::vector<bool> &m_asmap)
  */
 bool CNode::ReceiveMsgBytes(const char *pch, unsigned int nBytes, bool& complete)
 {
-    complete = false;
     int64_t nTimeMicros = GetTimeMicros();
     LOCK(cs_vRecv);
     nLastRecv = nTimeMicros / 1000000;
     nRecvBytes += nBytes;
-    while (nBytes > 0) {
-        // absorb network data
-        int handled = m_deserializer->Read(pch, nBytes, nRecvBytes==nBytes);
-        if (handled < 0) return false;
 
-        pch += handled;
-        nBytes -= handled;
+    Optional<unsigned int> maybe_handled;
+    std::vector<CNetMessage> deserialized_msgs;
+    Optional<std::vector<unsigned char>> maybe_upgrade_data;
+    std::tie(maybe_handled, deserialized_msgs, maybe_upgrade_data) = m_deserializer->ReadMessages(pch, nBytes, Params().MessageStart(), nTimeMicros, nRecvBytes==nBytes);
 
-        if (m_deserializer->Complete()) {
-            std::vector<unsigned char> data;
-            if (m_deserializer->ProtocolUpgradeDetected(data)) {
-                if (data.size() != 32) {
-                    // invalid handshake data
-                    return false;
-                }
-                m_deserializer->Reset();
-                complete = true;
-                LogPrint(BCLog::NET, "v2 transport protocol encryption handshake detected from peer=%i\n", GetId());
+    complete |= !deserialized_msgs.empty();
+    for (CNetMessage &msg : deserialized_msgs) {
+        //store received bytes per message command
+        //to prevent a memory DOS, only allow valid commands
+        mapMsgCmdSize::iterator i = mapRecvBytesPerMsgCmd.find(msg.m_command);
+        if (i == mapRecvBytesPerMsgCmd.end())
+            i = mapRecvBytesPerMsgCmd.find(NET_MESSAGE_COMMAND_OTHER);
+        assert(i != mapRecvBytesPerMsgCmd.end());
+        i->second += msg.m_raw_message_size;
 
-                // generate our handshake emphemeral key
-                bool encryption_initiator = true;
-                if (!m_ecdh_key.IsValid()) {
-                    encryption_initiator = false;
-                    V2TransportSerializer::generateEmphemeralKey(m_ecdh_key);
-                    CPubKey pubkey = m_ecdh_key.GetPubKey();
-                    assert(pubkey.IsValid());
-                    assert(pubkey[0] == 2);
-                    assert(pubkey.size() == CPubKey::COMPRESSED_SIZE);
-                    std::vector<unsigned char> handshake_data;
-                    handshake_data.insert(handshake_data.begin(), pubkey.begin() + 1, pubkey.begin() + 33);
+        // push the message to the process queue,
+        vRecvMsg.push_back(std::move(msg));
+    }
 
-                    // directly send back the raw pubkey so the other party can enable encryption as well
-                    //   bypass the serializer
-                    LOCK(cs_vSend);
-                    nSendSize += handshake_data.size();
-                    vSendMsg.push_back(handshake_data);
-                }
+    if (maybe_handled.has_value()) {
+        pch += *maybe_handled;
+        nBytes -= *maybe_handled;
+    } else {
+        return false;
+    }
 
-                // construct the even pubkey
-                CPubKey remote_emphemeral_pubkey;
-                data.insert(data.begin(), 2);
-                remote_emphemeral_pubkey.Set(data.begin(), data.end());
-                if (!remote_emphemeral_pubkey.IsFullyValid()) {
-                    LogPrint(BCLog::NET, "Invalid encryption handshake pubkey received from peer=%i\n", GetId());
-                    return false;
-                }
+    if (maybe_upgrade_data.has_value()) {
+        std::vector<unsigned char> data = std::move(*maybe_upgrade_data);
+        if (data.size() != 32) { // upgrade data
+            // invalid handshake data
+            return false;
+        }
+        complete = true;
+        LogPrint(BCLog::NET, "v2 transport protocol encryption handshake detected from peer=%i\n", GetId());
 
-                // perform ECDH
-                CPrivKey raw_ecdh_secret;
-                if (!m_ecdh_key.ComputeECDHSecret(remote_emphemeral_pubkey, raw_ecdh_secret)) {
-                    LogPrint(BCLog::NET, "Could not compute ECDH shared secret, peer=%i\n", GetId());
-                    return false;
-                }
-                assert(raw_ecdh_secret.size() == 32);
+        // generate our handshake emphemeral key
+        bool encryption_initiator = true;
+        if (!m_ecdh_key.IsValid()) {
+            encryption_initiator = false;
+            V2TransportSerializer::generateEmphemeralKey(m_ecdh_key);
+            CPubKey pubkey = m_ecdh_key.GetPubKey();
+            assert(pubkey.IsValid());
+            assert(pubkey[0] == 2);
+            assert(pubkey.size() == CPubKey::COMPRESSED_SIZE);
+            std::vector<unsigned char> handshake_data;
+            handshake_data.insert(handshake_data.begin(), pubkey.begin() + 1, pubkey.begin() + 33);
 
-                CPrivKey k_1_a(32, 0);
-                CPrivKey k_2_a(32, 0);
-                CPrivKey k_1_b(32, 0);
-                CPrivKey k_2_b(32, 0);
-                uint256 session_id;
+            // directly send back the raw pubkey so the other party can enable encryption as well
+            //   bypass the serializer
+            LOCK(cs_vSend);
+            nSendSize += handshake_data.size();
+            vSendMsg.push_back(handshake_data);
+        }
 
-                // derive the keys for the aead
-                CHKDF_HMAC_SHA256_L32 hkdf_32(raw_ecdh_secret.data(), 32, "BitcoinSharedSecret");
-                hkdf_32.Expand32("BitcoinK_1_A", k_1_a.data());
-                hkdf_32.Expand32("BitcoinK_2_A", k_2_a.data());
-                hkdf_32.Expand32("BitcoinK_1_B", k_1_b.data());
-                hkdf_32.Expand32("BitcoinK_2_B", k_2_b.data());
-                hkdf_32.Expand32("BitcoinSessionID", session_id.begin());
+        // construct the even pubkey
+        CPubKey remote_emphemeral_pubkey;
+        data.insert(data.begin(), 2);
+        remote_emphemeral_pubkey.Set(data.begin(), data.end());
+        if (!remote_emphemeral_pubkey.IsFullyValid()) {
+            LogPrint(BCLog::NET, "Invalid encryption handshake pubkey received from peer=%i\n", GetId());
+            return false;
+        }
 
-                // switch to v2 serializers
-                if (encryption_initiator) {
-                    m_deserializer = MakeUnique<V2TransportDeserializer>(V2TransportDeserializer(k_1_b, k_2_b, session_id));
-                    m_serializer  = MakeUnique<V2TransportSerializer>(V2TransportSerializer(k_1_a, k_2_a, session_id));
-                } else {
-                    m_deserializer = MakeUnique<V2TransportDeserializer>(V2TransportDeserializer(k_1_a, k_2_a, session_id));
-                    m_serializer  = MakeUnique<V2TransportSerializer>(V2TransportSerializer(k_1_b, k_2_b, session_id));
-                }
+        // perform ECDH
+        CPrivKey raw_ecdh_secret;
+        if (!m_ecdh_key.ComputeECDHSecret(remote_emphemeral_pubkey, raw_ecdh_secret)) {
+            LogPrint(BCLog::NET, "Could not compute ECDH shared secret, peer=%i\n", GetId());
+            return false;
+        }
+        assert(raw_ecdh_secret.size() == 32);
 
-                LogPrint(BCLog::NET, "Enabling p2p encryption with session %s, peer=%i\n", session_id.GetHex(), GetId());
-                continue;
-            }
-            // decompose a transport agnostic CNetMessage from the deserializer
-            CNetMessage msg = m_deserializer->GetMessage(Params().MessageStart(), nTimeMicros);
+        CPrivKey k_1_a(32, 0);
+        CPrivKey k_2_a(32, 0);
+        CPrivKey k_1_b(32, 0);
+        CPrivKey k_2_b(32, 0);
+        uint256 session_id;
 
+        // derive the keys for the aead
+        CHKDF_HMAC_SHA256_L32 hkdf_32(raw_ecdh_secret.data(), 32, "BitcoinSharedSecret");
+        hkdf_32.Expand32("BitcoinK_1_A", k_1_a.data());
+        hkdf_32.Expand32("BitcoinK_2_A", k_2_a.data());
+        hkdf_32.Expand32("BitcoinK_1_B", k_1_b.data());
+        hkdf_32.Expand32("BitcoinK_2_B", k_2_b.data());
+        hkdf_32.Expand32("BitcoinSessionID", session_id.begin());
+
+        // switch to v2 serializers
+        if (encryption_initiator) {
+            m_deserializer = MakeUnique<V2TransportDeserializer>(V2TransportDeserializer(k_1_b, k_2_b, session_id));
+            m_serializer  = MakeUnique<V2TransportSerializer>(V2TransportSerializer(k_1_a, k_2_a, session_id));
+        } else {
+            m_deserializer = MakeUnique<V2TransportDeserializer>(V2TransportDeserializer(k_1_a, k_2_a, session_id));
+            m_serializer  = MakeUnique<V2TransportSerializer>(V2TransportSerializer(k_1_b, k_2_b, session_id));
+        }
+
+        LogPrint(BCLog::NET, "Enabling p2p encryption with session %s, peer=%i\n", session_id.GetHex(), GetId());
+
+        Optional<unsigned int> v2_maybe_handled;
+        std::vector<CNetMessage> v2_deserialized_msgs;
+        Optional<std::vector<unsigned char>> v2_maybe_upgrade_data;
+        std::tie(v2_maybe_handled, v2_deserialized_msgs, v2_maybe_upgrade_data)
+            = m_deserializer->ReadMessages(pch, nBytes, Params().MessageStart(), nTimeMicros, nRecvBytes==nBytes);
+
+        complete |= !v2_deserialized_msgs.empty();
+        for (CNetMessage &msg : v2_deserialized_msgs) {
             //store received bytes per message command
             //to prevent a memory DOS, only allow valid commands
             mapMsgCmdSize::iterator i = mapRecvBytesPerMsgCmd.find(msg.m_command);
@@ -690,8 +710,17 @@ bool CNode::ReceiveMsgBytes(const char *pch, unsigned int nBytes, bool& complete
 
             // push the message to the process queue,
             vRecvMsg.push_back(std::move(msg));
+        }
 
-            complete = true;
+        if (v2_maybe_handled.has_value()) {
+            pch += *v2_maybe_handled;
+            nBytes -= *v2_maybe_handled;
+        } else {
+            return false;
+        }
+
+        if (v2_maybe_upgrade_data.has_value()) {
+            assert(false);
         }
     }
 
@@ -891,6 +920,32 @@ int V2TransportDeserializer::Read(const char* pch, unsigned int bytes, bool firs
 
         return copy_bytes;
     }
+}
+
+std::tuple<Optional<unsigned int>, std::vector<CNetMessage>, Optional<std::vector<unsigned char>>> V2TransportDeserializer::ReadMessages(const char *receive_buffer, unsigned int num_bytes, const CMessageHeader::MessageStartChars& message_start, int64_t time, bool first_message) {
+    unsigned int total_handled = 0;
+    std::vector<CNetMessage> out_msgs;
+    while (num_bytes > 0) {
+        // absorb network data
+        int handled = Read(receive_buffer, num_bytes, first_message);
+        if (handled < 0) {
+            return std::make_tuple(nullopt, std::move(out_msgs), nullopt);
+        }
+
+        total_handled += handled;
+        receive_buffer += handled;
+        num_bytes -= handled;
+
+        if (Complete()) {
+            std::vector<unsigned char> data;
+            if (ProtocolUpgradeDetected(data)) {
+                Reset();
+                return std::make_tuple(total_handled, std::move(out_msgs), std::move(data));
+            }
+            out_msgs.push_back(GetMessage(message_start, time));
+        }
+    }
+    return std::make_tuple(total_handled, std::move(out_msgs), nullopt);
 }
 
 CNetMessage V2TransportDeserializer::GetMessage(const CMessageHeader::MessageStartChars& message_start, int64_t time)

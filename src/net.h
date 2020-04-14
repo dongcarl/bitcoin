@@ -18,6 +18,7 @@
 #include <limitedmap.h>
 #include <netaddress.h>
 #include <net_permissions.h>
+#include <optional.h>
 #include <policy/feerate.h>
 #include <protocol.h>
 #include <random.h>
@@ -647,6 +648,26 @@ public:
     virtual bool ProtocolUpgradeDetected(std::vector<unsigned char>& data) = 0;
     // decomposes a message from the context
     virtual CNetMessage GetMessage(const CMessageHeader::MessageStartChars& message_start, int64_t time) = 0;
+    /**
+     * Try to decode all CNetMessage%s from the first \p nBytes bytes of the \p
+     * pch buffer.
+     *
+     * @param[in] message_start The expected message start string.
+     * @param[in] time The approximate time at which these messages were
+     *                 received in microseconds since UNIX epoch.
+     *
+     * @returns A tuple where the first element indicates whether or not an
+     *          unhandleable error has occured (e.g. failure to deserialize the
+     *          header or ludicrous message sizes), and the second element
+     *          contains all succesfully decoded CNetMessage%s.
+     *
+     * @note Even if an unhandleable error has occured, CNetMessage%s might have
+     *       already been decoded. These CNetMessage%s should not be ignored and
+     *       probably should be processed.
+     *
+     * @see CNode::ReceiveMsgBytes(const char *, unsigned int, bool&)
+     */
+    virtual std::tuple<Optional<unsigned int>, std::vector<CNetMessage>, Optional<std::vector<unsigned char>>> ReadMessages(const char *pch, unsigned int nBytes, const CMessageHeader::MessageStartChars& message_start, int64_t time, bool first_message) = 0;
     virtual ~TransportDeserializer() {}
 };
 
@@ -706,6 +727,31 @@ public:
     }
     bool ProtocolUpgradeDetected(std::vector<unsigned char>& data) override;
     CNetMessage GetMessage(const CMessageHeader::MessageStartChars& message_start, int64_t time) override;
+    std::tuple<Optional<unsigned int>, std::vector<CNetMessage>, Optional<std::vector<unsigned char>>> ReadMessages(const char *pch, unsigned int nBytes, const CMessageHeader::MessageStartChars& message_start, int64_t time, bool first_message) override {
+        unsigned int total_handled = 0;
+        std::vector<CNetMessage> out_msgs;
+        while (nBytes > 0) {
+            // absorb network data
+            int handled = Read(pch, nBytes, first_message);
+            if (handled < 0) {
+                return std::make_tuple(nullopt, std::move(out_msgs), nullopt);
+            }
+
+            total_handled += handled;
+            pch += handled;
+            nBytes -= handled;
+
+            if (Complete()) {
+                std::vector<unsigned char> data;
+                if (ProtocolUpgradeDetected(data)) {
+                    Reset();
+                    return std::make_tuple(total_handled, std::move(out_msgs), std::move(data));
+                }
+                out_msgs.push_back(GetMessage(message_start, time));
+            }
+        }
+        return std::make_tuple(total_handled, std::move(out_msgs), nullopt);
+    }
 };
 
 // ChaCha20 must never reuse a {key, nonce} for encryption nor may it be
@@ -771,6 +817,7 @@ public:
     int Read(const char* pch, unsigned int nBytes, bool first_message);
     bool ProtocolUpgradeDetected(std::vector<unsigned char>& data) override { return false; }
     CNetMessage GetMessage(const CMessageHeader::MessageStartChars& message_start, int64_t time);
+    std::tuple<Optional<unsigned int>, std::vector<CNetMessage>, Optional<std::vector<unsigned char>>> ReadMessages(const char *receive_buffer, unsigned int num_bytes, const CMessageHeader::MessageStartChars& message_start, int64_t time, bool first_message) override;
 };
 
 /** The TransportSerializer prepares messages for the network transport

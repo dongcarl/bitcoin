@@ -322,14 +322,11 @@ BOOST_AUTO_TEST_CASE(PoissonNextSend)
     g_mock_deterministic_tests = false;
 }
 
-size_t read_message(std::unique_ptr<TransportDeserializer>& deserializer, const std::vector<unsigned char>& serialized_header, const CSerializedNetMsg& msg)
+std::tuple<Optional<unsigned int>, std::vector<CNetMessage>, Optional<std::vector<unsigned char>>> read_message(std::unique_ptr<TransportDeserializer>& deserializer, const std::vector<unsigned char>& serialized_header, const CSerializedNetMsg& msg)
 {
-    size_t read_bytes = 0;
-    if (serialized_header.size() > 0) read_bytes += deserializer->Read((const char*)serialized_header.data(), serialized_header.size(), false);
-    //  second: read the encrypted payload (if required)
-    if (msg.data.size() > 0) read_bytes += deserializer->Read((const char*)msg.data.data(), msg.data.size(), false);
-    if (msg.data.size() > read_bytes && msg.data.size() - read_bytes > 0) read_bytes += deserializer->Read((const char*)msg.data.data() + read_bytes, msg.data.size() - read_bytes, false);
-    return read_bytes;
+    std::vector<unsigned char> serialized_all = std::vector<unsigned char>(serialized_header);
+    serialized_all.insert(serialized_all.end(), msg.data.begin(), msg.data.end());
+    return deserializer->ReadMessages((const char*)serialized_all.data(), serialized_all.size(), Params().MessageStart(), GetTimeMicros(), false);
 }
 
 // use 32 bytey keys with all zeros
@@ -363,11 +360,14 @@ void message_serialize_deserialize_test(bool v2, const std::vector<CSerializedNe
             serializer->prepareForTransport(msg, serialized_header);
 
             // read two times
-            size_t read_bytes = read_message(deserializer, serialized_header, msg);
-            BOOST_CHECK(deserializer->Complete());
-            BOOST_CHECK_EQUAL(read_bytes, msg.data.size() + serialized_header.size());
-            // message must be complete
-            CNetMessage msg_deser = deserializer->GetMessage(Params().MessageStart(), GetTimeMicros());
+            Optional<unsigned int> maybe_handled;
+            std::vector<CNetMessage> deserialized_msgs;
+            Optional<std::vector<unsigned char>> maybe_upgrade_data;
+            std::tie(maybe_handled, deserialized_msgs, maybe_upgrade_data) = read_message(deserializer, serialized_header, msg);
+            BOOST_CHECK(maybe_handled.has_value());
+            BOOST_CHECK_EQUAL(deserialized_msgs.size(), 1);
+
+            CNetMessage msg_deser = deserialized_msgs.at(0);
             BOOST_CHECK_EQUAL(msg_deser.m_command, msg.command);
             BOOST_CHECK_EQUAL(raw_msg_size, msg_deser.m_message_size);
         }
@@ -428,8 +428,16 @@ BOOST_AUTO_TEST_CASE(net_rekey)
 
         // decrypt the message with the fast rekey-rules
         gArgs.ForceSetArg("-netencryptionfastrekey", "1");
-        read_message(deserializer, serialized_header, test_msg);
-        CNetMessage msg_deser = deserializer->GetMessage(Params().MessageStart(), GetTimeMicros());
+
+        Optional<unsigned int> maybe_handled;
+        std::vector<CNetMessage> deserialized_msgs;
+        Optional<std::vector<unsigned char>> maybe_upgrade_data;
+        std::tie(maybe_handled, deserialized_msgs, maybe_upgrade_data) = read_message(deserializer, serialized_header, test_msg);
+        BOOST_CHECK(maybe_handled.has_value());
+        BOOST_CHECK_EQUAL(deserialized_msgs.size(), 1);
+
+        CNetMessage msg_deser = deserialized_msgs.at(0);
+        BOOST_CHECK_EQUAL(msg_deser.m_command, test_msg.command);
 
         // make sure we detect the failed rekey
         // the 76. message (32kb) must have violated the fast rekey limits
@@ -444,7 +452,13 @@ BOOST_AUTO_TEST_CASE(net_rekey)
     for (unsigned int i = 0; i <= 100; i++) {
         std::vector<unsigned char> serialized_header;
         serializer->prepareForTransport(test_msg_short, serialized_header);
-        read_message(deserializer, serialized_header, test_msg_short);
+
+        Optional<unsigned int> maybe_handled;
+        std::vector<CNetMessage> deserialized_msgs;
+        Optional<std::vector<unsigned char>> maybe_upgrade_data;
+        std::tie(maybe_handled, deserialized_msgs, maybe_upgrade_data) = read_message(deserializer, serialized_header, test_msg_short);
+        BOOST_CHECK(maybe_handled.has_value());
+        BOOST_CHECK_EQUAL(deserialized_msgs.size(), 1);
 
         // manual decrypt the length and check the rekey flag
         uint32_t testlen = 0;
@@ -455,7 +469,7 @@ BOOST_AUTO_TEST_CASE(net_rekey)
             testlen &= ~(1U << 23);
         }
         BOOST_CHECK(testlen == test_msg_short.data.size() - CHACHA20_POLY1305_AEAD_AAD_LEN - CHACHA20_POLY1305_AEAD_TAG_LEN);
-        CNetMessage msg_deser = deserializer->GetMessage(Params().MessageStart(), GetTimeMicros());
+        CNetMessage msg_deser = deserialized_msgs.at(0);
 
         // increase the position and sequence in the aead instance we use for the check
         aad_pos += CHACHA20_POLY1305_AEAD_AAD_LEN;
