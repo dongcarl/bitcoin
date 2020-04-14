@@ -638,16 +638,8 @@ public:
  */
 class TransportDeserializer {
 public:
-    // returns true if the current deserialization is complete
-    virtual bool Complete() const = 0;
     // set the serialization context version
     virtual void SetVersion(int version) = 0;
-    // read and deserialize data
-    virtual int Read(const char *data, unsigned int bytes, bool first_message) = 0;
-    // check if it is a transport protocol upgrade handshake
-    virtual bool ProtocolUpgradeDetected(std::vector<unsigned char>& data) = 0;
-    // decomposes a message from the context
-    virtual CNetMessage GetMessage(const CMessageHeader::MessageStartChars& message_start, int64_t time) = 0;
     /**
      * Try to decode all CNetMessage%s from the first \p num_bytes bytes of the
      * \p receive_buffer buffer.
@@ -706,7 +698,7 @@ public:
         Reset();
     }
 
-    bool Complete() const override
+    bool Complete() const
     {
         if (!in_data)
             return false;
@@ -720,13 +712,13 @@ public:
         hdrbuf.SetVersion(nVersionIn);
         vRecv.SetVersion(nVersionIn);
     }
-    int Read(const char *pch, unsigned int nBytes, bool first_message) override {
+    int Read(const char *pch, unsigned int nBytes, bool first_message) {
         int ret = in_data ? readData(pch, nBytes) : readHeader(pch, nBytes, first_message);
         if (ret < 0) Reset();
         return ret;
     }
-    bool ProtocolUpgradeDetected(std::vector<unsigned char>& data) override;
-    CNetMessage GetMessage(const CMessageHeader::MessageStartChars& message_start, int64_t time) override;
+    bool ProtocolUpgradeDetected(std::vector<unsigned char>& data);
+    CNetMessage GetMessage(const CMessageHeader::MessageStartChars& message_start, int64_t time);
     std::tuple<Optional<unsigned int>, std::vector<CNetMessage>, Optional<std::vector<unsigned char>>> ReadMessages(const char *receive_buffer, unsigned int num_bytes, const CMessageHeader::MessageStartChars& message_start, int64_t time, bool first_message) override {
         unsigned int total_handled = 0;
         std::vector<CNetMessage> out_msgs;
@@ -806,7 +798,7 @@ public:
         }
         return (m_message_size + CHACHA20_POLY1305_AEAD_TAG_LEN == m_data_pos);
     }
-    void SetVersion(int nVersionIn)
+    void SetVersion(int nVersionIn) override
     {
         vRecv.SetVersion(nVersionIn);
     }
@@ -815,7 +807,7 @@ public:
         return (m_in_data && m_message_size > MAX_PROTOCOL_MESSAGE_LENGTH);
     }
     int Read(const char* pch, unsigned int nBytes, bool first_message);
-    bool ProtocolUpgradeDetected(std::vector<unsigned char>& data) override { return false; }
+    bool ProtocolUpgradeDetected(std::vector<unsigned char>& data) { return false; }
     CNetMessage GetMessage(const CMessageHeader::MessageStartChars& message_start, int64_t time);
     std::tuple<Optional<unsigned int>, std::vector<CNetMessage>, Optional<std::vector<unsigned char>>> ReadMessages(const char *receive_buffer, unsigned int num_bytes, const CMessageHeader::MessageStartChars& message_start, int64_t time, bool first_message) override;
 };
