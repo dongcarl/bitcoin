@@ -649,8 +649,8 @@ public:
     // decomposes a message from the context
     virtual CNetMessage GetMessage(const CMessageHeader::MessageStartChars& message_start, int64_t time) = 0;
     /**
-     * Try to decode all CNetMessage%s from the first \p nBytes bytes of the \p
-     * pch buffer.
+     * Try to decode all CNetMessage%s from the first \p num_bytes bytes of the
+     * \p receive_buffer buffer.
      *
      * @param[in] message_start The expected message start string.
      * @param[in] time The approximate time at which these messages were
@@ -667,7 +667,7 @@ public:
      *
      * @see CNode::ReceiveMsgBytes(const char *, unsigned int, bool&)
      */
-    virtual std::tuple<Optional<unsigned int>, std::vector<CNetMessage>, Optional<std::vector<unsigned char>>> ReadMessages(const char *pch, unsigned int nBytes, const CMessageHeader::MessageStartChars& message_start, int64_t time, bool first_message) = 0;
+    virtual std::tuple<Optional<unsigned int>, std::vector<CNetMessage>, Optional<std::vector<unsigned char>>> ReadMessages(const char *receive_buffer, unsigned int num_bytes, const CMessageHeader::MessageStartChars& message_start, int64_t time, bool first_message) = 0;
     virtual ~TransportDeserializer() {}
 };
 
@@ -727,19 +727,19 @@ public:
     }
     bool ProtocolUpgradeDetected(std::vector<unsigned char>& data) override;
     CNetMessage GetMessage(const CMessageHeader::MessageStartChars& message_start, int64_t time) override;
-    std::tuple<Optional<unsigned int>, std::vector<CNetMessage>, Optional<std::vector<unsigned char>>> ReadMessages(const char *pch, unsigned int nBytes, const CMessageHeader::MessageStartChars& message_start, int64_t time, bool first_message) override {
+    std::tuple<Optional<unsigned int>, std::vector<CNetMessage>, Optional<std::vector<unsigned char>>> ReadMessages(const char *receive_buffer, unsigned int num_bytes, const CMessageHeader::MessageStartChars& message_start, int64_t time, bool first_message) override {
         unsigned int total_handled = 0;
         std::vector<CNetMessage> out_msgs;
-        while (nBytes > 0) {
+        while (num_bytes > 0) {
             // absorb network data
-            int handled = Read(pch, nBytes, first_message);
+            int handled = Read(receive_buffer, num_bytes, first_message);
             if (handled < 0) {
                 return std::make_tuple(nullopt, std::move(out_msgs), nullopt);
             }
 
             total_handled += handled;
-            pch += handled;
-            nBytes -= handled;
+            receive_buffer += handled;
+            num_bytes -= handled;
 
             if (Complete()) {
                 std::vector<unsigned char> data;
