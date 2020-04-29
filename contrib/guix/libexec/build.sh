@@ -185,7 +185,7 @@ export PATH="${BASEPREFIX}/${HOST}/native/bin:${PATH}"
     cd "$DISTSRC"
 
     # Extract the source tarball
-    tar -xf "${GIT_ARCHIVE}"
+    tar --strip-components=1 -xf "${GIT_ARCHIVE}"
 
     ./autogen.sh
 
