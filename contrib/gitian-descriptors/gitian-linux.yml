@@ -40,7 +40,7 @@ script: |
   set -e -o pipefail
 
   WRAP_DIR=$HOME/wrapped
-  HOSTS="x86_64-linux-gnu arm-linux-gnueabihf aarch64-linux-gnu riscv64-linux-gnu"
+  HOSTS="x86_64-linux-gnu"
   CONFIGFLAGS="--enable-glibc-back-compat --enable-reduce-exports --disable-bench --disable-gui-tests"
   FAKETIME_HOST_PROGS="gcc g++"
   FAKETIME_PROGS="date ar ranlib nm"
@@ -140,16 +140,32 @@ script: |
   create_per-host_faketime_wrappers "${REFERENCE_DATETIME}"
   export PATH=${WRAP_DIR}:${PATH}
 
+  ./autogen.sh
+  CONFIG_SITE=${BASEPREFIX}/$(echo "${HOSTS}" | awk '{print $1;}')/share/config.site ./configure --prefix=/ --disable-ccache --disable-maintainer-mode --disable-dependency-tracking
   # Define DISTNAME variable.
   # shellcheck source=contrib/gitian-descriptors/assign_DISTNAME
   source contrib/gitian-descriptors/assign_DISTNAME
+  make dist distdir="$DISTNAME"
 
-  GIT_ARCHIVE="${OUTDIR}/src/${DISTNAME}.tar.gz"
+  GIT_ARCHIVE="$(mktemp)"
+  trap "rm -f '$GIT_ARCHIVE'" EXIT
+  git archive --prefix="${DISTNAME}/" --format=tar --output="$GIT_ARCHIVE" HEAD
+
+  OUT_ARCHIVE="${OUTDIR}/src/${DISTNAME}.tar.gz"
+  mkdir -p "$(dirname "$OUT_ARCHIVE")"
+
+  git ls-files \
+      | git check-attr --stdin export-subst \
+      | grep -v 'unspecified$' \
+      | sed 's|: export-subst: [^:]*$||' \
+      | sed 's|^|bitcoin-0.20.99/|' \
+      | ./share/merge-tarballs "${DISTNAME}.tar.gz" "$GIT_ARCHIVE" -o "$OUT_ARCHIVE"
+  rm -f "$GIT_ARCHIVE"
 
   # Create the release tarball using (arbitrarily) the first host
-  mkdir -p "$(dirname "$GIT_ARCHIVE")"
-  CONFIG_SITE="${BASEPREFIX}/${HOSTS/ */}/share/config.site" \
-  contrib/gitian-descriptors/make_release_tarball "${GIT_ARCHIVE}"
+  # mkdir -p "$(dirname "$GIT_ARCHIVE")"
+  # CONFIG_SITE="${BASEPREFIX}/${HOSTS/ */}/share/config.site" \
+  # contrib/gitian-descriptors/make_release_tarball "${GIT_ARCHIVE}"
 
   ORIGPATH="$PATH"
   # Extract the git archive into a dir for each host and build
@@ -166,7 +182,7 @@ script: |
     cd distsrc-${i}
     INSTALLPATH="${PWD}/installed/${DISTNAME}"
     mkdir -p ${INSTALLPATH}
-    tar --strip-components=1 -xf "${GIT_ARCHIVE}"
+    tar --strip-components=1 -xf "${OUT_ARCHIVE}"
 
     CONFIG_SITE=${BASEPREFIX}/${i}/share/config.site ./configure --prefix=/ --disable-ccache --disable-maintainer-mode --disable-dependency-tracking ${CONFIGFLAGS} CFLAGS="${HOST_CFLAGS}" CXXFLAGS="${HOST_CXXFLAGS}" LDFLAGS="${HOST_LDFLAGS}"
     make ${MAKEOPTS}

@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+import argparse
+import tarfile
+import fileinput
+import gzip
+
+
+def run():
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
+
+    parser.add_argument('make_dist', metavar='MAKEDIST', type=argparse.FileType('rb'))
+    parser.add_argument('git_archive', metavar='GITARCHIVE', type=argparse.FileType('rb'))
+    parser.add_argument("--exclude-from", metavar='FILE', type=argparse.FileType('r'), default='-', dest='exclude_from', required=False)
+    parser.add_argument("-o", metavar='OUTTGZ', type=argparse.FileType('wb'), default='out.tgz', dest='out_tgz', required=False)
+
+    args = parser.parse_args()
+
+    exclusions = [line.rstrip("\n") for line in args.exclude_from.readlines()]
+
+
+    with tarfile.open(fileobj=args.make_dist) as make_dist_tf:
+        make_dist_members = make_dist_tf.getmembers()
+        chosen_members = [member for member in make_dist_members if member.name not in exclusions]
+        chosen_member_names = frozenset([chosen_member.name for chosen_member in chosen_members])
+        with tarfile.open(fileobj=args.git_archive) as git_archive_tf:
+            git_archive_members = git_archive_tf.getmembers()
+            with gzip.GzipFile(fileobj=args.out_tgz, compresslevel=9, mtime=0) as gzf:
+                with tarfile.open(mode="w", fileobj=gzf) as tarfp:
+                    for git_archive_member in git_archive_members:
+                        if git_archive_member.name not in chosen_member_names:
+                            git_archive_member_file = git_archive_tf.extractfile(git_archive_member)
+                            tarfp.addfile(git_archive_member, fileobj=git_archive_member_file)
+                    for chosen_member in chosen_members:
+                        chosen_member_file = make_dist_tf.extractfile(chosen_member)
+                        tarfp.addfile(chosen_member, fileobj=chosen_member_file)
+
+
+if __name__ == '__main__':
+    run()
