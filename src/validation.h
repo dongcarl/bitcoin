@@ -13,6 +13,7 @@
 #include <amount.h>
 #include <attributes.h>
 #include <coins.h>
+#include <chainparams.h>
 #include <crypto/common.h> // for ReadLE64
 #include <fs.h>
 #include <node/utxo_snapshot.h>
@@ -435,6 +436,9 @@ public:
 
     /** Find the last common block between the parameter chain and a locator. */
     CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& locator) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
+
+    //! Returns last CBlockIndex* that is a checkpoint
+    CBlockIndex* GetLastCheckpoint(const CCheckpointData& data) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
     /**
      * Return the spend height, which is one more than the inputs.GetBestBlock().
