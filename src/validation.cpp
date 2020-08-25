@@ -5144,7 +5144,8 @@ double GuessVerificationProgress(const ChainTxData& data, const CBlockIndex *pin
 }
 
 Optional<uint256> ChainstateManager::SnapshotBlockhash() const {
-    if (m_active_chainstate != nullptr) {
+    if (m_active_chainstate != nullptr &&
+            !m_active_chainstate->m_from_snapshot_blockhash.IsNull()) {
         // If a snapshot chainstate exists, it will always be our active.
         return m_active_chainstate->m_from_snapshot_blockhash;
     }
