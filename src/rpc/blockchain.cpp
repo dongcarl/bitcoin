@@ -2430,10 +2430,21 @@ static RPCHelpMan dumptxoutset()
 
     FILE* file{fsbridge::fopen(temppath, "wb")};
     CAutoFile afile{file, SER_DISK, CLIENT_VERSION};
+    NodeContext& node = EnsureNodeContext(request.context);
+    UniValue result = CreateUTXOSnapshot(node, node.chainman->ActiveChainstate(), afile);
+    fs::rename(temppath, path);
+
+    result.pushKV("path", path.string());
+    return result;
+},
+    };
+}
+
+UniValue CreateUTXOSnapshot(NodeContext& node, CChainState& chainstate, CAutoFile& afile)
+{
     std::unique_ptr<CCoinsViewCursor> pcursor;
     CCoinsStats stats;
     CBlockIndex* tip;
-    NodeContext& node = EnsureNodeContext(request.context);
 
     {
         // We need to lock cs_main to ensure that the coinsdb isn't written to
@@ -2449,16 +2460,15 @@ static RPCHelpMan dumptxoutset()
         //   https://github.com/bitcoin/bitcoin/pull/15606#discussion_r274479369
         //
         LOCK(::cs_main);
-        CChainState& active_chainstate = EnsureChainman(request.context).ActiveChainstate();
 
-        active_chainstate.ForceFlushStateToDisk();
+        chainstate.ForceFlushStateToDisk();
 
-        if (!GetUTXOStats(&active_chainstate.CoinsDB(), active_chainstate.m_blockman, stats, CoinStatsHashType::NONE, node.rpc_interruption_point)) {
+        if (!GetUTXOStats(&chainstate.CoinsDB(), chainstate.m_blockman, stats, CoinStatsHashType::NONE, node.rpc_interruption_point)) {
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Unable to read UTXO set");
         }
 
-        pcursor = std::unique_ptr<CCoinsViewCursor>(active_chainstate.CoinsDB().Cursor());
-        tip = active_chainstate.m_blockman.LookupBlockIndex(stats.hashBlock);
+        pcursor = std::unique_ptr<CCoinsViewCursor>(chainstate.CoinsDB().Cursor());
+        tip = chainstate.m_blockman.LookupBlockIndex(stats.hashBlock);
         CHECK_NONFATAL(tip);
     }
 
@@ -2482,16 +2492,13 @@ static RPCHelpMan dumptxoutset()
     }
 
     afile.fclose();
-    fs::rename(temppath, path);
 
     UniValue result(UniValue::VOBJ);
     result.pushKV("coins_written", stats.coins_count);
     result.pushKV("base_hash", tip->GetBlockHash().ToString());
     result.pushKV("base_height", tip->nHeight);
-    result.pushKV("path", path.string());
+
     return result;
-},
-    };
 }
 
 void RegisterBlockchainRPCCommands(CRPCTable &t)
