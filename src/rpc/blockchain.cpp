@@ -974,6 +974,17 @@ static RPCHelpMan getblock()
     };
 }
 
+/** Prune block files up to a given height */
+void PruneBlockFilesManual(CChainState& active_chainstate, int nManualPruneHeight)
+{
+    BlockValidationState state;
+    const CChainParams& chainparams = Params();
+    if (!active_chainstate.FlushStateToDisk(
+                                            chainparams, state, FlushStateMode::NONE, nManualPruneHeight)) {
+        LogPrintf("%s: failed to flush state (%s)\n", __func__, state.ToString());
+    }
+}
+
 static RPCHelpMan pruneblockchain()
 {
     return RPCHelpMan{"pruneblockchain", "",
@@ -1020,7 +1031,7 @@ static RPCHelpMan pruneblockchain()
         height = chainHeight - MIN_BLOCKS_TO_KEEP;
     }
 
-    PruneBlockFilesManual(height);
+    PruneBlockFilesManual(::ChainstateActive(), height);
     const CBlockIndex* block = ::ChainActive().Tip();
     CHECK_NONFATAL(block);
     while (block->pprev && (block->pprev->nStatus & BLOCK_HAVE_DATA)) {

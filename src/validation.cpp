@@ -3962,17 +3962,6 @@ void BlockManager::FindFilesToPruneManual(std::set<int>& setFilesToPrune, int nM
     LogPrintf("Prune (Manual): prune_height=%d removed %d blk/rev pairs\n", nLastBlockWeCanPrune, count);
 }
 
-/* This function is called from the RPC code for pruneblockchain */
-void PruneBlockFilesManual(int nManualPruneHeight)
-{
-    BlockValidationState state;
-    const CChainParams& chainparams = Params();
-    if (!::ChainstateActive().FlushStateToDisk(
-            chainparams, state, FlushStateMode::NONE, nManualPruneHeight)) {
-        LogPrintf("%s: failed to flush state (%s)\n", __func__, state.ToString());
-    }
-}
-
 void BlockManager::FindFilesToPrune(std::set<int>& setFilesToPrune, uint64_t nPruneAfterHeight, int chain_tip_height, bool is_ibd)
 {
     LOCK2(cs_main, cs_LastBlockFile);
