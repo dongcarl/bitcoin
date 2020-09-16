@@ -38,7 +38,7 @@ TransactionError BroadcastTransaction(NodeContext& node, const CTransactionRef t
     if (!node.mempool->exists(hashTx)) {
         // Transaction is not already in the mempool. Submit it.
         TxValidationState state;
-        if (!AcceptToMemoryPool(*node.mempool, state, tx,
+        if (!AcceptToMemoryPool(::ChainstateActive(), *node.mempool, state, tx,
                                 nullptr /* plTxnReplaced */, false /* bypass_limits */, max_tx_fee)) {
             err_string = state.ToString();
             if (state.IsInvalid()) {
