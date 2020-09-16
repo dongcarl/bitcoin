@@ -414,7 +414,7 @@ static void UpdateMempoolForReorg(CTxMemPool& mempool, DisconnectedBlockTransact
 * */
 static bool CheckInputsFromMempoolAndCache(const CTransaction& tx, TxValidationState& state,
                 const CCoinsViewCache& view, const CTxMemPool& pool,
-                unsigned int flags, PrecomputedTransactionData& txdata)
+                unsigned int flags, PrecomputedTransactionData& txdata, CChainState& chainstate)
                 EXCLUSIVE_LOCKS_REQUIRED(cs_main, pool.cs)
 {
     AssertLockHeld(cs_main);
@@ -439,7 +439,8 @@ static bool CheckInputsFromMempoolAndCache(const CTransaction& tx, TxValidationS
             assert(txFrom->vout.size() > txin.prevout.n);
             assert(txFrom->vout[txin.prevout.n] == coin.out);
         } else {
-            const Coin& coinFromUTXOSet = ::ChainstateActive().CoinsTip().AccessCoin(txin.prevout);
+            assert(std::addressof(::ChainstateActive()) == std::addressof(chainstate));
+            const Coin& coinFromUTXOSet = chainstate.CoinsTip().AccessCoin(txin.prevout);
             assert(!coinFromUTXOSet.IsSpent());
             assert(coinFromUTXOSet.out == coin.out);
         }
@@ -977,7 +978,7 @@ bool MemPoolAccept::ConsensusScriptChecks(ATMPArgs& args, const Workspace& ws, P
     // invalid blocks (using TestBlockValidity), however allowing such
     // transactions into the mempool can be exploited as a DoS attack.
     unsigned int currentBlockScriptVerifyFlags = GetBlockScriptFlags(::ChainActive().Tip(), chainparams.GetConsensus());
-    if (!CheckInputsFromMempoolAndCache(tx, state, m_view, m_pool, currentBlockScriptVerifyFlags, txdata)) {
+    if (!CheckInputsFromMempoolAndCache(tx, state, m_view, m_pool, currentBlockScriptVerifyFlags, txdata, ::ChainstateActive())) {
         return error("%s: BUG! PLEASE REPORT THIS! CheckInputScripts failed against latest-block but not STANDARD flags %s, %s",
                 __func__, hash.ToString(), state.ToString());
     }
