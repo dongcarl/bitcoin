@@ -4211,7 +4211,7 @@ bool static LoadBlockIndexDB(ChainstateManager& chainman, const CChainParams& ch
 void CChainState::LoadMempool(const ArgsManager& args)
 {
     if (args.GetArg("-persistmempool", DEFAULT_PERSIST_MEMPOOL)) {
-        ::LoadMempool(m_mempool, ::ChainstateActive());
+        ::LoadMempool(m_mempool, *this);
     }
     m_mempool.SetIsLoaded(!ShutdownRequested());
 }
