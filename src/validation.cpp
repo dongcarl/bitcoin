@@ -3871,11 +3871,12 @@ bool ChainstateManager::ProcessNewBlock(const CChainParams& chainparams, const s
     return true;
 }
 
-bool TestBlockValidity(BlockValidationState& state, const CChainParams& chainparams, const CBlock& block, CBlockIndex* pindexPrev, bool fCheckPOW, bool fCheckMerkleRoot)
+bool TestBlockValidity(BlockValidationState& state, const CChainParams& chainparams, CChainState& active_chainstate, const CBlock& block, CBlockIndex* pindexPrev, bool fCheckPOW, bool fCheckMerkleRoot)
 {
     AssertLockHeld(cs_main);
-    assert(pindexPrev && pindexPrev == ::ChainActive().Tip());
-    CCoinsViewCache viewNew(&::ChainstateActive().CoinsTip());
+    assert(std::addressof(::ChainstateActive()) == std::addressof(active_chainstate));
+    assert(pindexPrev && pindexPrev == active_chainstate.m_chain.Tip());
+    CCoinsViewCache viewNew(&active_chainstate.CoinsTip());
     uint256 block_hash(block.GetHash());
     CBlockIndex indexDummy(block);
     indexDummy.pprev = pindexPrev;
@@ -3883,13 +3884,14 @@ bool TestBlockValidity(BlockValidationState& state, const CChainParams& chainpar
     indexDummy.phashBlock = &block_hash;
 
     // NOTE: CheckBlockHeader is called by CheckBlock
-    if (!ContextualCheckBlockHeader(block, state, g_chainman.m_blockman, chainparams, pindexPrev, GetAdjustedTime()))
+    assert(std::addressof(g_chainman.m_blockman) == std::addressof(active_chainstate.m_blockman));
+    if (!ContextualCheckBlockHeader(block, state, active_chainstate.m_blockman, chainparams, pindexPrev, GetAdjustedTime()))
         return error("%s: Consensus::ContextualCheckBlockHeader: %s", __func__, state.ToString());
     if (!CheckBlock(block, state, chainparams.GetConsensus(), fCheckPOW, fCheckMerkleRoot))
         return error("%s: Consensus::CheckBlock: %s", __func__, state.ToString());
     if (!ContextualCheckBlock(block, state, chainparams.GetConsensus(), pindexPrev))
         return error("%s: Consensus::ContextualCheckBlock: %s", __func__, state.ToString());
-    if (!::ChainstateActive().ConnectBlock(block, state, &indexDummy, viewNew, chainparams, true))
+    if (!active_chainstate.ConnectBlock(block, state, &indexDummy, viewNew, chainparams, true))
         return false;
     assert(state.IsValid());
 
