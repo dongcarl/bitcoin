@@ -188,6 +188,10 @@ $(host_prefix)/share/config.site : config.site.in $(host_prefix)/.stamp_$(final_
             -e "s|@RANLIB@|env PATH=$(binutils_path) $(host_RANLIB)|" \
             -e "s|@NM@|env PATH=$(binutils_path) $(host_NM)|" \
             -e "s|@STRIP@|env PATH=$(binutils_path) $(host_STRIP)|" \
+            -e "s|@CC_CMD@|$(host_CC_CMD)|" \
+            -e "s|@CXX_CMD@|$(host_CXX_CMD)|" \
+            -e "s|@CC_CMD_WRAPPER@|env PATH=$(toolchain_path) $(host_CC_CMD_WRAPPER)|" \
+            -e "s|@CXX_CMD_WRAPPER@|env PATH=$(toolchain_path) $(host_CXX_CMD_WRAPPER)|" \
             -e 's|@build_os@|$(build_os)|' \
             -e 's|@host_os@|$(host_os)|' \
             -e 's|@CFLAGS@|$(strip $(host_CFLAGS) $(host_$(release_type)_CFLAGS))|' \

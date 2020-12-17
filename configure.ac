@@ -67,8 +67,36 @@ case $host in
   ;;
 esac
 
+AC_PATH_PROG(CCACHE,ccache)
+if test "x$use_ccache" != "xno"; then
+  AC_MSG_CHECKING(if ccache should be used)
+  if test x$CCACHE = x; then
+    if test "x$use_ccache" = "xyes"; then
+      AC_MSG_ERROR([ccache not found.]);
+    else
+      use_ccache=no
+    fi
+  else
+    use_ccache=yes
+    if test "x${CC_CMD_WRAPPER}" != x && test "x${CC_CMD}" != x; then
+      CC="${CC_CMD_WRAPPER} $ac_cv_path_CCACHE $CC_CMD"
+    else
+      CC="$ac_cv_path_CCACHE $CC"
+    fi
+    export CC
+    if test "x${CXX_CMD_WRAPPER}" != x && test "x${CXX_CMD}" != x; then
+      CXX="${CXX_CMD_WRAPPER} $ac_cv_path_CCACHE $CXX_CMD"
+    else
+      CXX="$ac_cv_path_CCACHE $CXX"
+    fi
+    export CXX
+  fi
+  AC_MSG_RESULT($use_ccache)
+fi
+
 dnl Require C++17 compiler (no GNU extensions)
 AX_CXX_COMPILE_STDCXX([17], [noext], [mandatory])
+export CXX
 
 dnl Check if -latomic is required for <std::atomic>
 CHECK_ATOMIC
@@ -100,7 +128,6 @@ dnl Python 3.6 is specified in .python-version and should be used if available, 
 AC_PATH_PROGS([PYTHON], [python3.6 python3.7 python3.8 python3.9 python3 python])
 AC_PATH_PROG(GENHTML, genhtml)
 AC_PATH_PROG([GIT], [git])
-AC_PATH_PROG(CCACHE,ccache)
 AC_PATH_PROG(XGETTEXT,xgettext)
 AC_PATH_PROG(HEXDUMP,hexdump)
 AC_PATH_TOOL(READELF, readelf)
@@ -1487,22 +1514,6 @@ fi
 AC_MSG_RESULT($build_bitcoin_libs)
 
 AC_LANG_POP
-
-if test "x$use_ccache" != "xno"; then
-  AC_MSG_CHECKING(if ccache should be used)
-  if test x$CCACHE = x; then
-    if test "x$use_ccache" = "xyes"; then
-      AC_MSG_ERROR([ccache not found.]);
-    else
-      use_ccache=no
-    fi
-  else
-    use_ccache=yes
-    CC="$ac_cv_path_CCACHE $CC"
-    CXX="$ac_cv_path_CCACHE $CXX"
-  fi
-  AC_MSG_RESULT($use_ccache)
-fi
 
 dnl enable wallet
 AC_MSG_CHECKING([if wallet should be enabled])

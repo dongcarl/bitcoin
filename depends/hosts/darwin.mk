@@ -59,24 +59,25 @@ endif
 #         include search paths, as that would be wrong in general but would also
 #         break #include_next's.
 #
-darwin_CC=env -u C_INCLUDE_PATH -u CPLUS_INCLUDE_PATH \
-              -u OBJC_INCLUDE_PATH -u OBJCPLUS_INCLUDE_PATH -u CPATH \
-              -u LIBRARY_PATH \
-            clang --target=$(host) -mmacosx-version-min=$(OSX_MIN_VERSION) \
-              -B$(build_prefix)/bin -mlinker-version=$(LD64_VERSION) \
-              --sysroot=$(OSX_SDK) \
-              -Xclang -internal-externc-isystem$(clang_resource_dir)/include \
-              -Xclang -internal-externc-isystem$(OSX_SDK)/usr/include
-darwin_CXX=env -u C_INCLUDE_PATH -u CPLUS_INCLUDE_PATH \
-               -u OBJC_INCLUDE_PATH -u OBJCPLUS_INCLUDE_PATH -u CPATH \
-               -u LIBRARY_PATH \
-             clang++ --target=$(host) -mmacosx-version-min=$(OSX_MIN_VERSION) \
-               -B$(build_prefix)/bin -mlinker-version=$(LD64_VERSION) \
-               --sysroot=$(OSX_SDK) \
-               -stdlib=libc++ -nostdinc++ \
-               -Xclang -cxx-isystem$(OSX_SDK)/usr/include/c++/v1 \
-               -Xclang -internal-externc-isystem$(clang_resource_dir)/include \
-               -Xclang -internal-externc-isystem$(OSX_SDK)/usr/include
+darwin_CC_CMD=clang --target=$(host) -mmacosx-version-min=$(OSX_MIN_VERSION) \
+                   -B$(build_prefix)/bin -mlinker-version=$(LD64_VERSION) \
+                   --sysroot=$(OSX_SDK) \
+                   -Xclang -internal-externc-isystem$(clang_resource_dir)/include \
+                   -Xclang -internal-externc-isystem$(OSX_SDK)/usr/include
+darwin_CXX_CMD=clang++ --target=$(host) -mmacosx-version-min=$(OSX_MIN_VERSION) \
+                    -B$(build_prefix)/bin -mlinker-version=$(LD64_VERSION) \
+                    --sysroot=$(OSX_SDK) \
+                    -stdlib=libc++ -nostdinc++ \
+                    -Xclang -cxx-isystem$(OSX_SDK)/usr/include/c++/v1 \
+                    -Xclang -internal-externc-isystem$(clang_resource_dir)/include \
+                    -Xclang -internal-externc-isystem$(OSX_SDK)/usr/include
+darwin_CC_CMD_WRAPPER=env -u C_INCLUDE_PATH -u CPLUS_INCLUDE_PATH \
+                        -u OBJC_INCLUDE_PATH -u OBJCPLUS_INCLUDE_PATH -u CPATH \
+                        -u LIBRARY_PATH
+darwin_CXX_CMD_WRAPPER=$(darwin_CC_CMD_WRAPPER)
+
+darwin_CC=$(darwin_CC_CMD_WRAPPER) $(darwin_CC_CMD)
+darwin_CXX=$(darwin_CXX_CMD_WRAPPER) $(darwin_CXX_CMD)
 
 darwin_CFLAGS=-pipe
 darwin_CXXFLAGS=$(darwin_CFLAGS)
