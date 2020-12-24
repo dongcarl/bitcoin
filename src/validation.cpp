@@ -114,7 +114,6 @@ bool CBlockIndexWorkComparator::operator()(const CBlockIndex *pa, const CBlockIn
  */
 RecursiveMutex cs_main;
 
-CBlockIndex *pindexBestHeader = nullptr;
 Mutex g_best_block_mutex;
 std::condition_variable g_best_block_cv;
 uint256 g_best_block;
@@ -128,11 +127,6 @@ uint256 hashAssumeValid;
 arith_uint256 nMinimumChainWork;
 
 CFeeRate minRelayTxFee = CFeeRate(DEFAULT_MIN_RELAY_TX_FEE);
-
-// Internal stuff
-namespace {
-    CBlockIndex* pindexBestInvalid = nullptr;
-} // namespace
 
 // Internal stuff from blockstorage ...
 extern RecursiveMutex cs_LastBlockFile;
@@ -322,7 +316,7 @@ static bool IsCurrentForFeeEstimation(CChainState& active_chainstate) EXCLUSIVE_
         return false;
     if (active_chainstate.m_chain.Tip()->GetBlockTime() < count_seconds(GetTime<std::chrono::seconds>() - MAX_FEE_ESTIMATION_TIP_AGE))
         return false;
-    if (active_chainstate.m_chain.Height() < pindexBestHeader->nHeight - 1)
+    if (active_chainstate.m_chain.Height() < active_chainstate.m_blockman.pindexBestHeader->nHeight - 1)
         return false;
     return true;
 }
@@ -1290,7 +1284,7 @@ void CChainState::CheckForkWarningConditions()
         return;
     }
 
-    if (pindexBestInvalid && pindexBestInvalid->nChainWork > m_chain.Tip()->nChainWork + (GetBlockProof(*m_chain.Tip()) * 6)) {
+    if (m_blockman.pindexBestInvalid && m_blockman.pindexBestInvalid->nChainWork > m_chain.Tip()->nChainWork + (GetBlockProof(*m_chain.Tip()) * 6)) {
         LogPrintf("%s: Warning: Found invalid chain at least ~6 blocks longer than our best chain.\nChain state database corruption likely.\n", __func__);
         SetfLargeWorkInvalidChainFound(true);
     } else {
@@ -1301,10 +1295,10 @@ void CChainState::CheckForkWarningConditions()
 // Called both upon regular invalid block discovery *and* InvalidateBlock
 void CChainState::InvalidChainFound(CBlockIndex* pindexNew)
 {
-    if (!pindexBestInvalid || pindexNew->nChainWork > pindexBestInvalid->nChainWork)
-        pindexBestInvalid = pindexNew;
-    if (pindexBestHeader != nullptr && pindexBestHeader->GetAncestor(pindexNew->nHeight) == pindexNew) {
-        pindexBestHeader = m_chain.Tip();
+    if (!m_blockman.pindexBestInvalid || pindexNew->nChainWork > m_blockman.pindexBestInvalid->nChainWork)
+        m_blockman.pindexBestInvalid = pindexNew;
+    if (m_blockman.pindexBestHeader != nullptr && m_blockman.pindexBestHeader->GetAncestor(pindexNew->nHeight) == pindexNew) {
+        m_blockman.pindexBestHeader = m_chain.Tip();
     }
 
     LogPrintf("%s: invalid block=%s  height=%d  log2_work=%f  date=%s\n", __func__,
@@ -1750,8 +1744,8 @@ bool CChainState::ConnectBlock(const CBlock& block, BlockValidationState& state,
         BlockMap::const_iterator  it = m_blockman.m_block_index.find(hashAssumeValid);
         if (it != m_blockman.m_block_index.end()) {
             if (it->second->GetAncestor(pindex->nHeight) == pindex &&
-                pindexBestHeader->GetAncestor(pindex->nHeight) == pindex &&
-                pindexBestHeader->nChainWork >= nMinimumChainWork) {
+                m_blockman.pindexBestHeader->GetAncestor(pindex->nHeight) == pindex &&
+                m_blockman.pindexBestHeader->nChainWork >= nMinimumChainWork) {
                 // This block is a member of the assumed verified chain and an ancestor of the best header.
                 // Script verification is skipped when connecting blocks under the
                 // assumevalid block. Assuming the assumevalid block is valid this
@@ -1766,7 +1760,7 @@ bool CChainState::ConnectBlock(const CBlock& block, BlockValidationState& state,
                 //  artificially set the default assumed verified block further back.
                 // The test against nMinimumChainWork prevents the skipping when denied access to any chain at
                 //  least as good as the expected chain.
-                fScriptChecks = (GetBlockProofEquivalentTime(*pindexBestHeader, *pindex, *pindexBestHeader, m_params.GetConsensus()) <= 60 * 60 * 24 * 7 * 2);
+                fScriptChecks = (GetBlockProofEquivalentTime(*m_blockman.pindexBestHeader, *pindex, *m_blockman.pindexBestHeader, m_params.GetConsensus()) <= 60 * 60 * 24 * 7 * 2);
             }
         }
     }
@@ -2444,8 +2438,8 @@ CBlockIndex* CChainState::FindMostWorkChain() {
             bool fMissingData = !(pindexTest->nStatus & BLOCK_HAVE_DATA);
             if (fFailedChain || fMissingData) {
                 // Candidate chain is not usable (either invalid or missing data)
-                if (fFailedChain && (pindexBestInvalid == nullptr || pindexNew->nChainWork > pindexBestInvalid->nChainWork))
-                    pindexBestInvalid = pindexNew;
+                if (fFailedChain && (m_blockman.pindexBestInvalid == nullptr || pindexNew->nChainWork > m_blockman.pindexBestInvalid->nChainWork))
+                    m_blockman.pindexBestInvalid = pindexNew;
                 CBlockIndex *pindexFailed = pindexNew;
                 // Remove the entire chain from the set.
                 while (pindexTest != pindexFailed) {
@@ -2589,7 +2583,7 @@ static bool NotifyHeaderTip(CChainState& chainstate) LOCKS_EXCLUDED(cs_main) {
     CBlockIndex* pindexHeader = nullptr;
     {
         LOCK(cs_main);
-        pindexHeader = pindexBestHeader;
+        pindexHeader = chainstate.m_blockman.pindexBestHeader;
 
         if (pindexHeader != pindexHeaderOld) {
             fNotify = true;
@@ -2894,9 +2888,9 @@ void CChainState::ResetBlockFailureFlags(CBlockIndex *pindex) {
             if (it->second->IsValid(BLOCK_VALID_TRANSACTIONS) && it->second->HaveTxsDownloaded() && setBlockIndexCandidates.value_comp()(m_chain.Tip(), it->second)) {
                 setBlockIndexCandidates.insert(it->second);
             }
-            if (it->second == pindexBestInvalid) {
+            if (it->second == m_blockman.pindexBestInvalid) {
                 // Reset invalid block marker if it was pointing to one of those.
-                pindexBestInvalid = nullptr;
+                m_blockman.pindexBestInvalid = nullptr;
             }
             m_blockman.m_failed_blocks.erase(it->second);
         }
@@ -3756,6 +3750,9 @@ void BlockManager::Unload() {
     }
 
     m_block_index.clear();
+
+    pindexBestInvalid = nullptr;
+    pindexBestHeader = nullptr;
 }
 
 bool BlockManager::LoadBlockIndexDB(std::set<CBlockIndex*, CBlockIndexWorkComparator>& setBlockIndexCandidates)
@@ -4087,8 +4084,6 @@ void UnloadBlockIndex(CTxMemPool* mempool, ChainstateManager& chainman)
 {
     LOCK(cs_main);
     chainman.Unload();
-    pindexBestInvalid = nullptr;
-    pindexBestHeader = nullptr;
     if (mempool) mempool->clear();
     vinfoBlockFile.clear();
     nLastBlockFile = 0;
