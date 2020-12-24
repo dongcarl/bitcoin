@@ -1346,7 +1346,7 @@ RPCHelpMan getblockchaininfo()
     UniValue obj(UniValue::VOBJ);
     obj.pushKV("chain",                 Params().NetworkIDString());
     obj.pushKV("blocks",                (int)chainman.ActiveChain().Height());
-    obj.pushKV("headers",               pindexBestHeader ? pindexBestHeader->nHeight : -1);
+    obj.pushKV("headers",               chainman.m_blockman.pindexBestHeader ? chainman.m_blockman.pindexBestHeader->nHeight : -1);
     obj.pushKV("bestblockhash",         tip->GetBlockHash().GetHex());
     obj.pushKV("difficulty",            (double)GetDifficulty(tip));
     obj.pushKV("mediantime",            (int64_t)tip->GetMedianTimePast());

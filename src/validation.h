@@ -127,9 +127,6 @@ extern uint256 hashAssumeValid;
 /** Minimum work we will assume exists on some valid chain. */
 extern arith_uint256 nMinimumChainWork;
 
-/** Best header we've seen so far (used for getheaders queries' starting points). */
-extern CBlockIndex *pindexBestHeader;
-
 /** Pruning-related variables and constants */
 /** True if any block files have ever been pruned. */
 extern bool fHavePruned;
@@ -376,6 +373,11 @@ public:
       * instead of putting things in this set.
       */
     std::set<CBlockIndex*> m_failed_blocks;
+
+    CBlockIndex* pindexBestInvalid = nullptr;
+
+    /** Best header we've seen so far (used for getheaders queries' starting points). */
+    CBlockIndex *pindexBestHeader = nullptr;
 
     /**
      * All pairs A->B, where A (or one of its ancestors) misses transactions, but B has transactions.
