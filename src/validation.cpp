@@ -1726,7 +1726,7 @@ bool BlockManager::WriteUndoDataForBlock(const CBlockUndo& blockundo, BlockValid
         // in the block file info as below; note that this does not catch the case where the undo writes are keeping up
         // with the block writes (usually when a synced up node is getting newly mined blocks) -- this case is caught in
         // the FindBlockPos function
-        if (_pos.nFile < nLastBlockFile && static_cast<uint32_t>(pindex->nHeight) == vinfoBlockFile[_pos.nFile].nHeightLast) {
+        if (_pos.nFile < WITH_LOCK(cs_LastBlockFile, return nLastBlockFile) && static_cast<uint32_t>(pindex->nHeight) == vinfoBlockFile[_pos.nFile].nHeightLast) {
             FlushUndoFile(_pos.nFile, true);
         }
 
