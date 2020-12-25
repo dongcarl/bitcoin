@@ -130,19 +130,6 @@ arith_uint256 nMinimumChainWork;
 
 CFeeRate minRelayTxFee = CFeeRate(DEFAULT_MIN_RELAY_TX_FEE);
 
-// Internal stuff
-namespace {
-
-    RecursiveMutex cs_LastBlockFile;
-    std::vector<CBlockFileInfo> vinfoBlockFile;
-    int nLastBlockFile GUARDED_BY(cs_LastBlockFile) = 0;
-    /** Global flag to indicate we should check to see if there are
-     *  block/undo files that should be deleted.  Set on startup
-     *  or if we allocate more file space when we're in prune mode
-     */
-    bool fCheckForPruning GUARDED_BY(cs_LastBlockFile) = false;
-} // anon namespace
-
 CBlockIndex* BlockManager::LookupBlockIndex(const uint256& hash)
 {
     AssertLockHeld(cs_main);
@@ -1692,7 +1679,7 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
 }
 
-static void FlushUndoFile(int block_file, bool finalize = false)
+void BlockManager::FlushUndoFile(int block_file, bool finalize)
 {
     FlatFilePos undo_pos_old(block_file, vinfoBlockFile[block_file].nUndoSize);
     if (!UndoFileSeq().Flush(undo_pos_old, finalize)) {
@@ -1700,7 +1687,7 @@ static void FlushUndoFile(int block_file, bool finalize = false)
     }
 }
 
-static void FlushBlockFile(bool fFinalize = false, bool finalize_undo = false)
+void BlockManager::FlushBlockFile(bool fFinalize, bool finalize_undo)
 {
     LOCK(cs_LastBlockFile);
     FlatFilePos block_pos_old(nLastBlockFile, vinfoBlockFile[nLastBlockFile].nSize);
@@ -2225,8 +2212,8 @@ bool CChainState::FlushStateToDisk(
         bool fFlushForPrune = false;
         bool fDoFullFlush = false;
         CoinsCacheSizeState cache_state = GetCoinsCacheSizeState(&m_mempool);
-        LOCK(cs_LastBlockFile);
-        if (fPruneMode && (fCheckForPruning || nManualPruneHeight > 0) && !fReindex) {
+        LOCK(m_blockman.cs_LastBlockFile);
+        if (fPruneMode && (m_blockman.fCheckForPruning || nManualPruneHeight > 0) && !fReindex) {
             if (nManualPruneHeight > 0) {
                 LOG_TIME_MILLIS_WITH_CATEGORY("find files to prune (manual)", BCLog::BENCH);
 
@@ -2235,7 +2222,7 @@ bool CChainState::FlushStateToDisk(
                 LOG_TIME_MILLIS_WITH_CATEGORY("find files to prune", BCLog::BENCH);
 
                 m_blockman.FindFilesToPrune(setFilesToPrune, chainparams.PruneAfterHeight(), m_chain.Height(), IsInitialBlockDownload());
-                fCheckForPruning = false;
+                m_blockman.fCheckForPruning = false;
             }
             if (!setFilesToPrune.empty()) {
                 fFlushForPrune = true;
@@ -2273,7 +2260,7 @@ bool CChainState::FlushStateToDisk(
                 LOG_TIME_MILLIS_WITH_CATEGORY("write block and undo data to disk", BCLog::BENCH);
 
                 // First make sure all block and undo data is flushed to disk.
-                FlushBlockFile();
+                m_blockman.FlushBlockFile();
             }
 
             // Then update all block file information (which may refer to block and undo files).
@@ -2283,7 +2270,7 @@ bool CChainState::FlushStateToDisk(
                 std::vector<std::pair<int, const CBlockFileInfo*> > vFiles;
                 vFiles.reserve(m_blockman.setDirtyFileInfo.size());
                 for (std::set<int>::iterator it = m_blockman.setDirtyFileInfo.begin(); it != m_blockman.setDirtyFileInfo.end(); ) {
-                    vFiles.push_back(std::make_pair(*it, &vinfoBlockFile[*it]));
+                    vFiles.push_back(std::make_pair(*it, &m_blockman.vinfoBlockFile[*it]));
                     m_blockman.setDirtyFileInfo.erase(it++);
                 }
                 std::vector<const CBlockIndex*> vBlocks;
@@ -2292,7 +2279,7 @@ bool CChainState::FlushStateToDisk(
                     vBlocks.push_back(*it);
                     m_blockman.setDirtyBlockIndex.erase(it++);
                 }
-                if (!pblocktree->WriteBatchSync(vFiles, nLastBlockFile, vBlocks)) {
+                if (!pblocktree->WriteBatchSync(vFiles, m_blockman.nLastBlockFile, vBlocks)) {
                     return AbortNode(state, "Failed to write to block index database");
                 }
             }
@@ -2345,8 +2332,8 @@ void CChainState::ForceFlushStateToDisk() {
 void CChainState::PruneAndFlush() {
     BlockValidationState state;
     {
-        LOCK(cs_LastBlockFile);
-        fCheckForPruning = true;
+        LOCK(m_blockman.cs_LastBlockFile);
+        m_blockman.fCheckForPruning = true;
     }
     const CChainParams& chainparams = Params();
 
@@ -3808,7 +3795,7 @@ bool TestBlockValidity(BlockValidationState& state,
  */
 
 /* Calculate the amount of disk space the block & undo files currently use */
-uint64_t CalculateCurrentUsage()
+uint64_t BlockManager::CalculateCurrentUsage()
 {
     LOCK(cs_LastBlockFile);
 
@@ -4071,6 +4058,13 @@ void BlockManager::Unload() {
 
     setDirtyBlockIndex.clear();
     setDirtyFileInfo.clear();
+
+    vinfoBlockFile.clear();
+    {
+        LOCK(cs_LastBlockFile);
+        nLastBlockFile = 0;
+        // TODO: reset fCheckForPruning?
+    }
 }
 
 bool CChainState::LoadBlockIndexDB(const CChainParams& chainparams) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
@@ -4081,19 +4075,19 @@ bool CChainState::LoadBlockIndexDB(const CChainParams& chainparams) EXCLUSIVE_LO
         return false;
     }
 
-    LOCK(cs_LastBlockFile);
+    LOCK(m_blockman.cs_LastBlockFile);
     // Load block file info
-    pblocktree->ReadLastBlockFile(nLastBlockFile);
-    vinfoBlockFile.resize(nLastBlockFile + 1);
-    LogPrintf("%s: last block file = %i\n", __func__, nLastBlockFile);
-    for (int nFile = 0; nFile <= nLastBlockFile; nFile++) {
-        pblocktree->ReadBlockFileInfo(nFile, vinfoBlockFile[nFile]);
+    pblocktree->ReadLastBlockFile(m_blockman.nLastBlockFile);
+    m_blockman.vinfoBlockFile.resize(m_blockman.nLastBlockFile + 1);
+    LogPrintf("%s: last block file = %i\n", __func__, m_blockman.nLastBlockFile);
+    for (int nFile = 0; nFile <= m_blockman.nLastBlockFile; nFile++) {
+        pblocktree->ReadBlockFileInfo(nFile, m_blockman.vinfoBlockFile[nFile]);
     }
-    LogPrintf("%s: last block file info: %s\n", __func__, vinfoBlockFile[nLastBlockFile].ToString());
-    for (int nFile = nLastBlockFile + 1; true; nFile++) {
+    LogPrintf("%s: last block file info: %s\n", __func__, m_blockman.vinfoBlockFile[m_blockman.nLastBlockFile].ToString());
+    for (int nFile = m_blockman.nLastBlockFile + 1; true; nFile++) {
         CBlockFileInfo info;
         if (pblocktree->ReadBlockFileInfo(nFile, info)) {
-            vinfoBlockFile.push_back(info);
+            m_blockman.vinfoBlockFile.push_back(info);
         } else {
             break;
         }
@@ -4516,11 +4510,6 @@ void UnloadBlockIndex(CTxMemPool* mempool, ChainstateManager& chainman)
     LOCK(cs_main);
     chainman.Unload();
     if (mempool) mempool->clear();
-    vinfoBlockFile.clear();
-    {
-        LOCK(cs_LastBlockFile);
-        nLastBlockFile = 0;
-    }
     versionbitscache.Clear();
     for (int b = 0; b < VERSIONBITS_NUM_BITS; b++) {
         warningcache[b].clear();
@@ -4925,7 +4914,7 @@ std::string CBlockFileInfo::ToString() const
     return strprintf("CBlockFileInfo(blocks=%u, size=%u, heights=%u...%u, time=%s...%s)", nBlocks, nSize, nHeightFirst, nHeightLast, FormatISO8601Date(nTimeFirst), FormatISO8601Date(nTimeLast));
 }
 
-CBlockFileInfo* GetBlockFileInfo(size_t n)
+CBlockFileInfo* BlockManager::GetBlockFileInfo(size_t n)
 {
     LOCK(cs_LastBlockFile);
 

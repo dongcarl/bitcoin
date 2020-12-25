@@ -385,6 +385,15 @@ public:
     /** Dirty block file entries. */
     std::set<int> setDirtyFileInfo;
 
+    RecursiveMutex cs_LastBlockFile;
+    std::vector<CBlockFileInfo> vinfoBlockFile;
+    int nLastBlockFile GUARDED_BY(cs_LastBlockFile) = 0;
+    /** Global flag to indicate we should check to see if there are
+     *  block/undo files that should be deleted.  Set on startup
+     *  or if we allocate more file space when we're in prune mode
+     */
+    bool fCheckForPruning GUARDED_BY(cs_LastBlockFile) = false;
+
     /**
      * All pairs A->B, where A (or one of its ancestors) misses transactions, but B has transactions.
      * Pruned nodes may have entries where B is missing data.
@@ -446,6 +455,13 @@ public:
     FlatFilePos SaveBlockToDisk(const CBlock& block, int nHeight, CChain& active_chain, const CChainParams& chainparams, const FlatFilePos* dbp);
 
     bool FindUndoPos(BlockValidationState &state, int nFile, FlatFilePos &pos, unsigned int nAddSize);
+
+    void FlushUndoFile(int block_file, bool finalize = false);
+
+    void FlushBlockFile(bool fFinalize = false, bool finalize_undo = false);
+
+    uint64_t CalculateCurrentUsage();
+    CBlockFileInfo* GetBlockFileInfo(size_t n);
 
     ~BlockManager() {
         Unload();
@@ -961,9 +977,6 @@ extern VersionBitsCache versionbitscache;
  * Determine what nVersion a new block should use.
  */
 int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Params& params);
-
-/** Get block file info entry for one block file */
-CBlockFileInfo* GetBlockFileInfo(size_t n);
 
 /** Dump the mempool to disk. */
 bool DumpMempool(const CTxMemPool& pool);
