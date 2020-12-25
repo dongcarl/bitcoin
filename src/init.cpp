@@ -274,7 +274,7 @@ void Shutdown(NodeContext& node)
                 chainstate->ResetCoinsViews();
             }
         }
-        pblocktree.reset();
+        node.chainman->m_blockman.m_block_tree.reset();
     }
     for (const auto& client : node.chain_clients) {
         client->stop();
@@ -712,7 +712,7 @@ static void ThreadImport(ChainstateManager& chainman, std::vector<fs::path> vImp
             }
             nFile++;
         }
-        pblocktree->WriteReindexing(false);
+        (*WITH_LOCK(::cs_main, return &chainman.m_blockman)).m_block_tree->WriteReindexing(false);
         fReindex = false;
         LogPrintf("Reindexing finished\n");
         // To avoid ending up in a situation without genesis block, re-try initializing (no-op if reindexing worked):
@@ -1586,11 +1586,11 @@ bool AppInitMain(const util::Ref& context, NodeContext& node, interfaces::BlockA
 
                 // new CBlockTreeDB tries to delete the existing file, which
                 // fails if it's still open from the previous loop. Close it first:
-                pblocktree.reset();
-                pblocktree.reset(new CBlockTreeDB(nBlockTreeDBCache, false, fReset));
+                chainman.m_blockman.m_block_tree.reset();
+                chainman.m_blockman.m_block_tree.reset(new CBlockTreeDB(nBlockTreeDBCache, false, fReset));
 
                 if (fReset) {
-                    pblocktree->WriteReindexing(true);
+                    chainman.m_blockman.m_block_tree->WriteReindexing(true);
                     //If we're reindexing in prune mode, wipe away unusable block files and all undo data files
                     if (fPruneMode)
                         CleanupBlockRevFiles();

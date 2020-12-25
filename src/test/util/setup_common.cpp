@@ -134,12 +134,11 @@ ChainTestingSetup::ChainTestingSetup(const std::string& chainName, const std::ve
     threadGroup.create_thread([&] { TraceThread("scheduler", [&] { m_node.scheduler->serviceQueue(); }); });
     GetMainSignals().RegisterBackgroundSignalScheduler(*m_node.scheduler);
 
-    pblocktree.reset(new CBlockTreeDB(1 << 20, true));
-
     m_node.fee_estimator = std::make_unique<CBlockPolicyEstimator>();
     m_node.mempool = std::make_unique<CTxMemPool>(m_node.fee_estimator.get(), 1);
 
     m_node.chainman = MakeUnique<ChainstateManager>();
+    m_node.chainman->m_blockman.m_block_tree.reset(new CBlockTreeDB(1 << 20, true));
 
     // Start script-checking threads. Set g_parallel_script_checks to true so they are used.
     constexpr int script_check_threads = 2;
@@ -163,7 +162,6 @@ ChainTestingSetup::~ChainTestingSetup()
     m_node.scheduler.reset();
     m_node.chainman->Reset();
     m_node.chainman.reset();
-    pblocktree.reset();
 }
 
 TestingSetup::TestingSetup(const std::string& chainName, const std::vector<const char*>& extra_args)

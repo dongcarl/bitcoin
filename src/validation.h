@@ -400,6 +400,8 @@ public:
      */
     std::multimap<CBlockIndex*, CBlockIndex*> m_blocks_unlinked;
 
+    std::unique_ptr<CBlockTreeDB> m_block_tree;
+
     /**
      * Load the blocktree off disk and into memory. Populate certain metadata
      * per index entry (nStatus, nChainWork, nTimeMax, etc.) as well as peripheral
@@ -967,9 +969,6 @@ public:
         Reset();
     }
 };
-
-/** Global variable that points to the active block tree (protected by cs_main) */
-extern std::unique_ptr<CBlockTreeDB> pblocktree;
 
 extern VersionBitsCache versionbitscache;
 
