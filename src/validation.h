@@ -128,8 +128,6 @@ extern uint256 hashAssumeValid;
 extern arith_uint256 nMinimumChainWork;
 
 /** Pruning-related variables and constants */
-/** True if any block files have ever been pruned. */
-extern bool fHavePruned;
 /** True if we're running in -prune mode. */
 extern bool fPruneMode;
 /** Number of MiB of block files that we're trying to stay below. */
@@ -402,6 +400,9 @@ public:
 
     std::unique_ptr<CBlockTreeDB> m_block_tree;
 
+    /** True if any block files have ever been pruned. */
+    bool fHavePruned = false;
+
     /**
      * Load the blocktree off disk and into memory. Populate certain metadata
      * per index entry (nStatus, nChainWork, nTimeMax, etc.) as well as peripheral
@@ -464,6 +465,12 @@ public:
 
     uint64_t CalculateCurrentUsage();
     CBlockFileInfo* GetBlockFileInfo(size_t n);
+
+    //! Check whether the block associated with this index entry is pruned or not.
+    inline bool IsBlockPruned(const CBlockIndex* pblockindex)
+    {
+        return (fHavePruned && !(pblockindex->nStatus & BLOCK_HAVE_DATA) && pblockindex->nTx > 0);
+    }
 
     ~BlockManager() {
         Unload();
@@ -982,11 +989,5 @@ bool DumpMempool(const CTxMemPool& pool);
 
 /** Load the mempool from disk. */
 bool LoadMempool(CTxMemPool& pool, CChainState& active_chainstate);
-
-//! Check whether the block associated with this index entry is pruned or not.
-inline bool IsBlockPruned(const CBlockIndex* pblockindex)
-{
-    return (fHavePruned && !(pblockindex->nStatus & BLOCK_HAVE_DATA) && pblockindex->nTx > 0);
-}
 
 #endif // BITCOIN_VALIDATION_H
