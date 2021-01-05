@@ -126,6 +126,8 @@ $(host_arch)_$(host_os)_id_string+=$(shell $(host_RANLIB) --version 2>/dev/null)
 $(host_arch)_$(host_os)_id_string+=$(shell $(host_STRIP) --version 2>/dev/null)
 
 ifneq ($(strip $(FORCE_USE_SYSTEM_CLANG)),)
+# Make sure that cache is invalidated when switching between system and
+# depends-managed, pinned clang
 build_id_string+=system_clang
 $(host_arch)_$(host_os)_id_string+=system_clang
 endif
@@ -163,12 +165,16 @@ $(host_arch)_$(host_os)_native_toolchain?=$($(host_os)_native_toolchain)
 
 include funcs.mk
 
-binutils_path=$($($(host_arch)_$(host_os)_native_binutils)_prefixbin)
-ifeq ($(strip $(FORCE_USE_SYSTEM_CLANG)),)
-toolchain_path=$($($(host_arch)_$(host_os)_native_toolchain)_prefixbin)
-else
-toolchain_path=
-endif
+# The /bin directory for the depends-managed binutils or toolchain, as of the
+# addition of this comment, this is non-empty for:
+#
+#     - binutils_prefixbin when targeting darwin architectures
+#     - toolchain_prefixbin when both of the following are true: we are
+#       targeting darwin architectures AND FORCE_USE_SYSTEM_CLANG is empty
+#
+binutils_prefixbin=$($($(host_arch)_$(host_os)_native_binutils)_prefixbin)
+toolchain_prefixbin=$($($(host_arch)_$(host_os)_native_toolchain)_prefixbin)
+
 final_build_id_long+=$(shell $(build_SHA256SUM) config.site.in)
 final_build_id+=$(shell echo -n "$(final_build_id_long)" | $(build_SHA256SUM) | cut -c-$(HASH_LENGTH))
 $(host_prefix)/.stamp_$(final_build_id): $(native_packages) $(packages)
@@ -182,12 +188,12 @@ $(host_prefix)/.stamp_$(final_build_id): $(native_packages) $(packages)
 $(host_prefix)/share/config.site : config.site.in $(host_prefix)/.stamp_$(final_build_id)
 	$(AT)@mkdir -p $(@D)
 	$(AT)sed -e 's|@HOST@|$(host)|' \
-            -e 's|@CC@|$(toolchain_path)$(host_CC)|' \
-            -e 's|@CXX@|$(toolchain_path)$(host_CXX)|' \
-            -e 's|@AR@|$(binutils_path)$(host_AR)|' \
-            -e 's|@RANLIB@|$(binutils_path)$(host_RANLIB)|' \
-            -e 's|@NM@|$(binutils_path)$(host_NM)|' \
-            -e 's|@STRIP@|$(binutils_path)$(host_STRIP)|' \
+            -e 's|@CC@|$(host_CC)|' \
+            -e 's|@CXX@|$(host_CXX)|' \
+            -e 's|@AR@|$(binutils_prefixbin)$(host_AR)|' \
+            -e 's|@RANLIB@|$(binutils_prefixbin)$(host_RANLIB)|' \
+            -e 's|@NM@|$(binutils_prefixbin)$(host_NM)|' \
+            -e 's|@STRIP@|$(binutils_prefixbin)$(host_STRIP)|' \
             -e 's|@build_os@|$(build_os)|' \
             -e 's|@host_os@|$(host_os)|' \
             -e 's|@CFLAGS@|$(strip $(host_CFLAGS) $(host_$(release_type)_CFLAGS))|' \

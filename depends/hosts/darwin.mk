@@ -6,11 +6,24 @@ LD64_VERSION=530
 
 OSX_SDK=$(SDK_PATH)/Xcode-$(XCODE_VERSION)-$(XCODE_BUILD_ID)-extracted-SDK-with-libcxx-headers
 
+darwin_native_binutils=native_cctools
+
 ifeq ($(strip $(FORCE_USE_SYSTEM_CLANG)),)
+# FORCE_USE_SYSTEM_CLANG is empty, so we use our depends-managed, pinned clang
+# from llvm.org
+darwin_native_toolchain=native_cctools
 clang_resource_dir=$(build_prefix)/lib/clang/$(native_cctools_clang_version)
+clang_prog=$(build_prefix)/bin/clang
+clangxx_prog=$(clang_prog)++
 else
+# FORCE_USE_SYSTEM_CLANG is non-empty, so we use the clang from the user's
+# system
+darwin_native_toolchain=
 clang_resource_dir=$(shell clang -print-resource-dir)
+clang_prog=$(shell command -v clang)
+clangxx_prog=$(shell command -v clang++)
 endif
+
 
 # Flag explanations:
 #
@@ -62,7 +75,7 @@ endif
 darwin_CC=env -u C_INCLUDE_PATH -u CPLUS_INCLUDE_PATH \
               -u OBJC_INCLUDE_PATH -u OBJCPLUS_INCLUDE_PATH -u CPATH \
               -u LIBRARY_PATH \
-            clang --target=$(host) -mmacosx-version-min=$(OSX_MIN_VERSION) \
+            $(clang_prog) --target=$(host) -mmacosx-version-min=$(OSX_MIN_VERSION) \
               -B$(build_prefix)/bin -mlinker-version=$(LD64_VERSION) \
               --sysroot=$(OSX_SDK) \
               -Xclang -internal-externc-isystem$(clang_resource_dir)/include \
@@ -70,7 +83,7 @@ darwin_CC=env -u C_INCLUDE_PATH -u CPLUS_INCLUDE_PATH \
 darwin_CXX=env -u C_INCLUDE_PATH -u CPLUS_INCLUDE_PATH \
                -u OBJC_INCLUDE_PATH -u OBJCPLUS_INCLUDE_PATH -u CPATH \
                -u LIBRARY_PATH \
-             clang++ --target=$(host) -mmacosx-version-min=$(OSX_MIN_VERSION) \
+             $(clangxx_prog) --target=$(host) -mmacosx-version-min=$(OSX_MIN_VERSION) \
                -B$(build_prefix)/bin -mlinker-version=$(LD64_VERSION) \
                --sysroot=$(OSX_SDK) \
                -stdlib=libc++ -nostdinc++ \
@@ -86,12 +99,5 @@ darwin_release_CXXFLAGS=$(darwin_release_CFLAGS)
 
 darwin_debug_CFLAGS=-O1
 darwin_debug_CXXFLAGS=$(darwin_debug_CFLAGS)
-
-darwin_native_binutils=native_cctools
-ifeq ($(strip $(FORCE_USE_SYSTEM_CLANG)),)
-darwin_native_toolchain=native_cctools
-else
-darwin_native_toolchain=
-endif
 
 darwin_cmake_system=Darwin
