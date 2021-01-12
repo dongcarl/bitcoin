@@ -972,11 +972,11 @@ public:
     //! ResizeCoinsCaches() as needed.
     void MaybeRebalanceCaches() EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
 
-    ~ChainstateManager() {
-        LOCK(::cs_main);
-        Unload();
-        Reset();
-    }
+    // ~ChainstateManager() {
+    //     LOCK(::cs_main);
+    //     Unload();
+    //     Reset();
+    // }
 };
 
 extern VersionBitsCache versionbitscache;
