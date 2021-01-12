@@ -1056,12 +1056,6 @@ public:
     //! Check to see if caches are out of balance and if so, call
     //! ResizeCoinsCaches() as needed.
     void MaybeRebalanceCaches() EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
-
-    ~ChainstateManager() {
-        LOCK(::cs_main);
-        Unload();
-        Reset();
-    }
 };
 
 using FopenFn = std::function<FILE*(const fs::path&, const char*)>;
