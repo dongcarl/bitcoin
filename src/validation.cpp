@@ -283,7 +283,7 @@ bool CheckSequenceLocks(CChainState& active_chainstate, const CTxMemPool& pool, 
 }
 
 // Returns the script flags which should be checked for a given block
-static unsigned int GetBlockScriptFlags(const CBlockIndex* pindex, const Consensus::Params& chainparams);
+static unsigned int GetBlockScriptFlags(const CBlockIndex* pindex, const Consensus::Params& chainparams, VersionBitsCache& versionbitscache);
 
 static void LimitMempoolSize(CTxMemPool& pool, CChainState& chainstate, size_t limit, std::chrono::seconds age)
     EXCLUSIVE_LOCKS_REQUIRED(pool.cs, ::cs_main)
@@ -656,7 +656,7 @@ bool MemPoolAccept::PreChecks(ATMPArgs& args, Workspace& ws)
 
     // Check for non-standard pay-to-script-hash in inputs
     const auto& params = args.m_chainparams.GetConsensus();
-    auto taproot_state = VersionBitsState(m_active_chainstate.m_chain.Tip(), params, Consensus::DEPLOYMENT_TAPROOT, versionbitscache);
+    auto taproot_state = VersionBitsState(m_active_chainstate.m_chain.Tip(), params, Consensus::DEPLOYMENT_TAPROOT, m_active_chainstate.m_blockman.versionbitscache);
     if (fRequireStandard && !AreInputsStandard(tx, m_view, taproot_state == ThresholdState::ACTIVE)) {
         return state.Invalid(TxValidationResult::TX_INPUTS_NOT_STANDARD, "bad-txns-nonstandard-inputs");
     }
@@ -936,7 +936,7 @@ bool MemPoolAccept::ConsensusScriptChecks(ATMPArgs& args, const Workspace& ws, P
     // There is a similar check in CreateNewBlock() to prevent creating
     // invalid blocks (using TestBlockValidity), however allowing such
     // transactions into the mempool can be exploited as a DoS attack.
-    unsigned int currentBlockScriptVerifyFlags = GetBlockScriptFlags(m_active_chainstate.m_chain.Tip(), chainparams.GetConsensus());
+    unsigned int currentBlockScriptVerifyFlags = GetBlockScriptFlags(m_active_chainstate.m_chain.Tip(), chainparams.GetConsensus(), m_active_chainstate.m_blockman.versionbitscache);
     if (!CheckInputsFromMempoolAndCache(tx, state, m_view, m_pool, currentBlockScriptVerifyFlags, txdata, m_active_chainstate)) {
         return error("%s: BUG! PLEASE REPORT THIS! CheckInputScripts failed against latest-block but not STANDARD flags %s, %s",
                 __func__, hash.ToString(), state.ToString());
@@ -1735,9 +1735,7 @@ void StopScriptCheckWorkerThreads()
     scriptcheckqueue.StopWorkerThreads();
 }
 
-VersionBitsCache versionbitscache GUARDED_BY(cs_main);
-
-int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Params& params)
+int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Params& params, VersionBitsCache& versionbitscache)
 {
     LOCK(cs_main);
     int32_t nVersion = VERSIONBITS_TOP_BITS;
@@ -1759,9 +1757,10 @@ class WarningBitsConditionChecker : public AbstractThresholdConditionChecker
 {
 private:
     int bit;
+    VersionBitsCache& m_versionbitscache;
 
 public:
-    explicit WarningBitsConditionChecker(int bitIn) : bit(bitIn) {}
+    explicit WarningBitsConditionChecker(int bitIn, VersionBitsCache& versionbitscache) : bit(bitIn), m_versionbitscache(versionbitscache)  {}
 
     int64_t BeginTime(const Consensus::Params& params) const override { return 0; }
     int64_t EndTime(const Consensus::Params& params) const override { return std::numeric_limits<int64_t>::max(); }
@@ -1773,11 +1772,9 @@ public:
         return pindex->nHeight >= params.MinBIP9WarningHeight &&
                ((pindex->nVersion & VERSIONBITS_TOP_MASK) == VERSIONBITS_TOP_BITS) &&
                ((pindex->nVersion >> bit) & 1) != 0 &&
-               ((ComputeBlockVersion(pindex->pprev, params) >> bit) & 1) == 0;
+               ((ComputeBlockVersion(pindex->pprev, params, m_versionbitscache) >> bit) & 1) == 0;
     }
 };
-
-static std::array<ThresholdConditionCache, VERSIONBITS_NUM_BITS> warningcache GUARDED_BY(cs_main);
 
 // 0.13.0 was shipped with a segwit deployment defined for testnet, but not for
 // mainnet. We no longer need to support disabling the segwit deployment
@@ -1788,7 +1785,7 @@ static bool IsScriptWitnessEnabled(const Consensus::Params& params)
     return params.SegwitHeight != std::numeric_limits<int>::max();
 }
 
-static unsigned int GetBlockScriptFlags(const CBlockIndex* pindex, const Consensus::Params& consensusparams) EXCLUSIVE_LOCKS_REQUIRED(cs_main) {
+static unsigned int GetBlockScriptFlags(const CBlockIndex* pindex, const Consensus::Params& consensusparams, VersionBitsCache& versionbitscache) EXCLUSIVE_LOCKS_REQUIRED(cs_main) {
     AssertLockHeld(cs_main);
 
     unsigned int flags = SCRIPT_VERIFY_NONE;
@@ -2029,7 +2026,7 @@ bool CChainState::ConnectBlock(const CBlock& block, BlockValidationState& state,
     }
 
     // Get the script flags for this block
-    unsigned int flags = GetBlockScriptFlags(pindex, chainparams.GetConsensus());
+    unsigned int flags = GetBlockScriptFlags(pindex, chainparams.GetConsensus(), m_blockman.versionbitscache);
 
     int64_t nTime2 = GetTimeMicros(); nTimeForks += nTime2 - nTime1;
     LogPrint(BCLog::BENCH, "    - Fork checks: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime2 - nTime1), nTimeForks * MICRO, nTimeForks * MILLI / nBlocksTotal);
@@ -2374,8 +2371,8 @@ static void UpdateTip(CTxMemPool& mempool, const CBlockIndex* pindexNew, const C
     {
         const CBlockIndex* pindex = pindexNew;
         for (int bit = 0; bit < VERSIONBITS_NUM_BITS; bit++) {
-            WarningBitsConditionChecker checker(bit);
-            ThresholdState state = checker.GetStateFor(pindex, chainParams.GetConsensus(), warningcache.at(bit));
+            WarningBitsConditionChecker checker(bit, active_chainstate.m_blockman.versionbitscache);
+            ThresholdState state = checker.GetStateFor(pindex, chainParams.GetConsensus(), active_chainstate.m_blockman.warningcache.at(bit));
             if (state == ThresholdState::ACTIVE || state == ThresholdState::LOCKED_IN) {
                 const bilingual_str warning = strprintf(_("Warning: unknown new rules activated (versionbit %i)"), bit);
                 if (state == ThresholdState::ACTIVE) {
@@ -4051,6 +4048,10 @@ void BlockManager::Unload() {
     // }
 
     m_block_index.clear();
+    versionbitscache.Clear();
+    for (auto i : warningcache) {
+        i.clear();
+    }
 
     pindexBestInvalid = nullptr;
     pindexBestHeader = nullptr;
@@ -4512,10 +4513,6 @@ void UnloadBlockIndex(CTxMemPool* mempool, ChainstateManager& chainman)
     LOCK(cs_main);
     chainman.Unload();
     if (mempool) mempool->clear();
-    versionbitscache.Clear();
-    for (auto i : warningcache) {
-        i.clear();
-    }
 }
 
 bool ChainstateManager::LoadBlockIndex(const CChainParams& chainparams)

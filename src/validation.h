@@ -472,6 +472,10 @@ public:
         return (fHavePruned && !(pblockindex->nStatus & BLOCK_HAVE_DATA) && pblockindex->nTx > 0);
     }
 
+    VersionBitsCache versionbitscache GUARDED_BY(cs_main);
+
+    std::array<ThresholdConditionCache, VERSIONBITS_NUM_BITS> warningcache GUARDED_BY(cs_main);
+
     ~BlockManager() {
         Unload();
     }
@@ -982,7 +986,7 @@ extern VersionBitsCache versionbitscache;
 /**
  * Determine what nVersion a new block should use.
  */
-int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Params& params);
+int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Params& params, VersionBitsCache& versionbitscache);
 
 /** Dump the mempool to disk. */
 bool DumpMempool(const CTxMemPool& pool);

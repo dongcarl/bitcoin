@@ -1236,7 +1236,7 @@ static void BuriedForkDescPushBack(UniValue& softforks, const std::string &name,
     softforks.pushKV(name, rv);
 }
 
-static void BIP9SoftForkDescPushBack(const CBlockIndex* active_chain_tip, UniValue& softforks, const std::string &name, const Consensus::Params& consensusParams, Consensus::DeploymentPos id) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
+static void BIP9SoftForkDescPushBack(const CBlockIndex* active_chain_tip, UniValue& softforks, const std::string &name, const Consensus::Params& consensusParams, Consensus::DeploymentPos id, VersionBitsCache& versionbitscache) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 {
     // For BIP9 deployments.
     // Deployments (e.g. testdummy) with timeout value before Jan 1, 2009 are hidden.
@@ -1380,8 +1380,8 @@ RPCHelpMan getblockchaininfo()
     BuriedForkDescPushBack(softforks, "bip65", consensusParams.BIP65Height, active_tip_nheight);
     BuriedForkDescPushBack(softforks, "csv", consensusParams.CSVHeight, active_tip_nheight);
     BuriedForkDescPushBack(softforks, "segwit", consensusParams.SegwitHeight, active_tip_nheight);
-    BIP9SoftForkDescPushBack(tip, softforks, "testdummy", consensusParams, Consensus::DEPLOYMENT_TESTDUMMY);
-    BIP9SoftForkDescPushBack(tip, softforks, "taproot", consensusParams, Consensus::DEPLOYMENT_TAPROOT);
+    BIP9SoftForkDescPushBack(tip, softforks, "testdummy", consensusParams, Consensus::DEPLOYMENT_TESTDUMMY, chainman.m_blockman.versionbitscache);
+    BIP9SoftForkDescPushBack(tip, softforks, "taproot", consensusParams, Consensus::DEPLOYMENT_TAPROOT, chainman.m_blockman.versionbitscache);
     obj.pushKV("softforks",             softforks);
 
     obj.pushKV("warnings", GetWarnings(false).original);

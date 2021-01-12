@@ -121,7 +121,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(CChainState& chai
     assert(pindexPrev != nullptr);
     nHeight = pindexPrev->nHeight + 1;
 
-    pblock->nVersion = ComputeBlockVersion(pindexPrev, chainparams.GetConsensus());
+    pblock->nVersion = ComputeBlockVersion(pindexPrev, chainparams.GetConsensus(), chainstate.m_blockman.versionbitscache);
     // -regtest only: allow overriding block.nVersion with
     // -blockversion=N to test forking scenarios
     if (chainparams.MineBlocksOnDemand())
