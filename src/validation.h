@@ -141,8 +141,6 @@ FILE* OpenBlockFile(const FlatFilePos &pos, bool fReadOnly = false);
 fs::path GetBlockPosFilename(const FlatFilePos &pos);
 /** Ensures we have a genesis block in the block tree, possibly writing one to disk. */
 bool LoadGenesisBlock(const CChainParams& chainparams);
-/** Unload database information */
-void UnloadBlockIndex(CTxMemPool* mempool, ChainstateManager& chainman);
 /** Run instances of script checking worker threads */
 void StartScriptCheckWorkerThreads(int threads_num);
 /** Stop all of the script checking worker threads */
@@ -976,7 +974,7 @@ public:
 
     ~ChainstateManager() {
         LOCK(::cs_main);
-        UnloadBlockIndex(/* mempool */ nullptr, *this);
+        Unload();
         Reset();
     }
 };
