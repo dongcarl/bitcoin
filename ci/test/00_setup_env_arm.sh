@@ -4,7 +4,7 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-export LC_ALL=C.UTF-8
+export LC_ALL=C
 
 export HOST=arm-linux-gnueabihf
 # The host arch is unknown, so we run the tests through qemu.
