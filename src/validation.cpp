@@ -2326,6 +2326,7 @@ void CChainState::ForceFlushStateToDisk() {
 void CChainState::PruneAndFlush() {
     BlockValidationState state;
     {
+        LOCK(::cs_main);
         LOCK(m_blockman.cs_LastBlockFile);
         m_blockman.fCheckForPruning = true;
     }

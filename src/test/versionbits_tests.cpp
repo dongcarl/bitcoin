@@ -268,6 +268,7 @@ BOOST_AUTO_TEST_CASE(versionbits_computeblockversion)
     // Start generating blocks before nStartTime
     int64_t nTime = nStartTime - 1;
 
+    LOCK(::cs_main);
     VersionBitsCache& versionbitscache = m_node.chainman->m_blockman.versionbitscache;
     // Before MedianTimePast of the chain has crossed nStartTime, the bit
     // should not be set.
