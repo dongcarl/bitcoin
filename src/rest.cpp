@@ -282,7 +282,8 @@ static bool rest_block(const util::Ref& context,
     }
 
     case RetFormat::JSON: {
-        UniValue objBlock = blockToJSON(block, tip, pblockindex, showTxDetails);
+        ChainstateManager& chainman = EnsureChainman(context);
+        UniValue objBlock = blockToJSON(WITH_LOCK(::cs_main, return std::ref(chainman.m_blockman)), block, tip, pblockindex, showTxDetails);
         std::string strJSON = objBlock.write() + "\n";
         req->WriteHeader("Content-Type", "application/json");
         req->WriteReply(HTTP_OK, strJSON);

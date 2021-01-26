@@ -29,7 +29,7 @@ static void BlockToJsonVerbose(benchmark::Bench& bench)
     blockindex.nBits = 403014710;
 
     bench.run([&] {
-        (void)blockToJSON(block, &blockindex, &blockindex, /*verbose*/ true);
+        (void)blockToJSON(WITH_LOCK(::cs_main, return std::ref(Assert(test_setup.m_node.chainman)->m_blockman)), block, &blockindex, &blockindex, /*verbose*/ true);
     });
 }
 
