@@ -814,15 +814,15 @@ private:
     //! Points to either the ibd or snapshot chainstate; indicates our
     //! most-work chain.
     //!
-    //! Once this pointer is set to a corresponding chainstate, it will not
-    //! be reset until init.cpp:Shutdown(). This means it is safe to acquire
-    //! the contents of this pointer with ::cs_main held, release the lock,
-    //! and then use the reference without concern of it being deconstructed.
+    //! It is safe to acquire the contents of this pointer with ::cs_main held,
+    //! release the lock, and then use the reference without concern of it
+    //! being deconstructed, though its contents may have changed in the
+    //! meantime.
     //!
-    //! This is especially important when, e.g., calling ActivateBestChain()
-    //! on all chainstates because we are not able to hold ::cs_main going into
+    //! This is especially important when, e.g., calling ActivateBestChain() on
+    //! all chainstates because we are not able to hold ::cs_main going into
     //! that call.
-    CChainState* m_active_chainstate{nullptr};
+    CChainState* m_active_chainstate GUARDED_BY(::cs_main) {nullptr};
 
     //! If true, the assumed-valid chainstate has been fully validated
     //! by the background validation chainstate.
@@ -878,9 +878,18 @@ public:
 
     //! The most-work chain.
     CChainState& ActiveChainstate() const;
-    CChain& ActiveChain() const { return ActiveChainstate().m_chain; }
-    int ActiveHeight() const { return ActiveChain().Height(); }
-    CBlockIndex* ActiveTip() const { return ActiveChain().Tip(); }
+    CChain& ActiveChain() const {
+        LOCK(::cs_main);
+        return ActiveChainstate().m_chain;
+    }
+    int ActiveHeight() const {
+        LOCK(::cs_main);
+        return ActiveChain().Height();
+    }
+    CBlockIndex* ActiveTip() const {
+        LOCK(::cs_main);
+        return ActiveChain().Tip();
+    }
 
     BlockMap& BlockIndex() EXCLUSIVE_LOCKS_REQUIRED(::cs_main)
     {
