@@ -5350,7 +5350,7 @@ bool ChainstateManager::PopulateAndValidateSnapshot(
     // about the snapshot_chainstate.
     CCoinsViewDB* snapshot_coinsdb = WITH_LOCK(::cs_main, return &snapshot_chainstate.CoinsDB());
 
-    if (!GetUTXOStats(snapshot_coinsdb, stats, CoinStatsHashType::HASH_SERIALIZED, breakpoint_fnc)) {
+    if (!GetUTXOStats(snapshot_coinsdb, snapshot_chainstate.m_blockman, stats, CoinStatsHashType::HASH_SERIALIZED, breakpoint_fnc)) {
         LogPrintf("[snapshot] failed to generate coins stats\n");
         return false;
     }
@@ -5363,7 +5363,7 @@ bool ChainstateManager::PopulateAndValidateSnapshot(
     CBlockIndex* snapshot_start_block = nullptr;
 
     while (max_secs_to_wait_for_headers > 0) {
-        snapshot_start_block = WITH_LOCK(::cs_main, return LookupBlockIndex(base_blockhash));
+        snapshot_start_block = WITH_LOCK(::cs_main, return snapshot_chainstate.m_blockman.LookupBlockIndex(base_blockhash));
         --max_secs_to_wait_for_headers;
 
         if (!snapshot_start_block) {

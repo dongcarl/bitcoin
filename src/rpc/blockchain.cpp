@@ -2460,7 +2460,6 @@ UniValue CreateUTXOSnapshot(NodeContext& node, CChainState& chainstate, CAutoFil
         //   https://github.com/bitcoin/bitcoin/pull/15606#discussion_r274479369
         //
         LOCK(::cs_main);
-        CChainState& active_chainstate = EnsureChainman(request.context).ActiveChainstate();
 
         chainstate.ForceFlushStateToDisk();
 
