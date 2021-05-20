@@ -9,6 +9,8 @@
 #include "util/system.h"
 #include <vector>
 
+#include <util/translation.h>
+
 using namespace std;
 
 void print(TxEvent &);

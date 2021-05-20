@@ -5,6 +5,8 @@
 #include "validation.h"
 #include "hash.h"
 
+#include <util/translation.h>
+
 using namespace std;
 
 const std::function<std::string(const char*)> G_TRANSLATION_FUN = nullptr;

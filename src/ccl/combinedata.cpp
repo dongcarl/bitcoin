@@ -8,6 +8,8 @@
 #include "boost/filesystem.hpp"
 #include <vector>
 
+#include <util/translation.h>
+
 using namespace std;
 
 void print(TxEvent &);
