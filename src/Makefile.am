@@ -551,7 +551,8 @@ bitcoind_LDADD = \
   $(LIBLEVELDB) \
   $(LIBLEVELDB_SSE42) \
   $(LIBMEMENV) \
-  $(LIBSECP256K1)
+  $(LIBSECP256K1) \
+  $(LIBCCL)
 
 bitcoind_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS)
 
@@ -721,4 +722,4 @@ if ENABLE_QT_TESTS
 include Makefile.qttest.include
 endif
 
-include ccl/Makefile.ccl.include
+include Makefile.ccl.include

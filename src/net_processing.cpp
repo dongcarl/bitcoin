@@ -32,7 +32,7 @@
 #include <memory>
 #include <typeinfo>
 
-#include "ccl/cclglobals.cpp"
+#include <ccl/cclglobals.h>
 
 #if defined(NDEBUG)
 # error "Bitcoin cannot be compiled without assertions."
