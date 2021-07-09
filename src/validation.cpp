@@ -1614,8 +1614,6 @@ public:
     }
 };
 
-static std::array<ThresholdConditionCache, VERSIONBITS_NUM_BITS> warningcache GUARDED_BY(cs_main);
-
 static unsigned int GetBlockScriptFlags(const CBlockIndex* pindex, const Consensus::Params& consensusparams, VersionBitsCache& versionbitscache)
 {
     unsigned int flags = SCRIPT_VERIFY_NONE;
@@ -2208,7 +2206,7 @@ static void UpdateTip(CTxMemPool& mempool, const CBlockIndex* pindexNew, const C
         const CBlockIndex* pindex = pindexNew;
         for (int bit = 0; bit < VERSIONBITS_NUM_BITS; bit++) {
             WarningBitsConditionChecker checker(bit, active_chainstate.m_blockman.versionbitscache);
-            ThresholdState state = checker.GetStateFor(pindex, chainParams.GetConsensus(), warningcache.at(bit));
+            ThresholdState state = checker.GetStateFor(pindex, chainParams.GetConsensus(), active_chainstate.m_blockman.warningcache.at(bit));
             if (state == ThresholdState::ACTIVE || state == ThresholdState::LOCKED_IN) {
                 const bilingual_str warning = strprintf(_("Unknown new rules activated (versionbit %i)"), bit);
                 if (state == ThresholdState::ACTIVE) {
@@ -4095,9 +4093,6 @@ void UnloadBlockIndex(CTxMemPool* mempool, ChainstateManager& chainman)
     LOCK(cs_main);
     chainman.Unload();
     if (mempool) mempool->clear();
-    for (auto i : warningcache) {
-        i.clear();
-    }
 }
 
 bool ChainstateManager::LoadBlockIndex()
